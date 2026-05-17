@@ -84,7 +84,6 @@ export default function App() {
   const fileInputRef = useRef(null)
 
   const [birthYear,    setBirthYear]    = useState('')
-  const [anthropicKey, setAnthropicKey] = useState('')
   const [inputValue,   setInputValue]   = useState('')
   const [loading,      setLoading]      = useState(false)
   const [messages,     setMessages]     = useState([
@@ -93,8 +92,6 @@ export default function App() {
   const [apiHistory,   setApiHistory]   = useState([])
 
   const [uploadedPhoto,    setUploadedPhoto]    = useState(null)
-  const [openaiKey,        setOpenaiKey]        = useState('')
-  const [showOAIKey,       setShowOAIKey]       = useState(false)
   const [generatingImage,  setGeneratingImage]  = useState(false)
   const [hasAnalyzed,      setHasAnalyzed]      = useState(false)
 
@@ -215,23 +212,15 @@ export default function App() {
 
   // ── API ──────────────────────────────────────────────────────────────────
 
-  const apiHdr = ()=>({
-    'Content-Type':'application/json',
-    'x-api-key':anthropicKey.trim(),
-    'anthropic-version':'2023-06-01',
-    'anthropic-dangerous-direct-browser-access':'true',
-  })
-
   const sendMessage = async txt => {
     const msg=(txt||inputValue).trim(); if(!msg||loading) return
-    if(!anthropicKey.trim()){ push('assistant','🔑 请先在右上角输入 Anthropic API Key～'); return }
     setInputValue('')
     push('user',msg)
     setLoading(true)
     const hist=[...apiHistory,{role:'user',content:msg}]
     try {
       const sys=`你是"风水AI"，年轻人喜欢的赛博风水师，专业有趣有神秘感。当前房间：${describeRoom()}。用户出生年份：${birthYear||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，语气像懂风水的贴心好友。`
-      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:apiHdr(),body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:sys,messages:hist})})
+      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:sys,messages:hist})})
       const d=await r.json()
       const reply=d.content?.[0]?.text||d.error?.message||'🔮 水晶球没电了，请稍后再试～'
       push('assistant',reply)
@@ -242,12 +231,11 @@ export default function App() {
 
   const analyzePhoto = async () => {
     if(!uploadedPhoto||loading) return
-    if(!anthropicKey.trim()){ push('assistant','🔑 请先输入 Anthropic API Key～'); return }
     setLoading(true)
     push('user','📷 上传了房间照片，请分析风水',uploadedPhoto.preview)
     const sys=`你是"风水AI"，仔细分析房间照片风水。用户出生年份：${birthYear||'未提供'}。分析：①家具方位②门窗气流③风水问题④2-3改善建议。轻松有趣，带emoji，280字以内。`
     try {
-      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:apiHdr(),body:JSON.stringify({
+      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:1000,system:sys,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:uploadedPhoto.mediaType,data:uploadedPhoto.base64}},
@@ -329,12 +317,6 @@ export default function App() {
             出生年份
             <input type="number" value={birthYear} onChange={e=>setBirthYear(e.target.value)} placeholder="2000"
               style={{width:66,padding:'4px 8px',border:'2px solid #111',background:'#FFF',fontSize:11,color:'#111',outline:'none',borderRadius:0}}/>
-          </label>
-          <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#666',fontWeight:700}}>
-            🔑 API KEY
-            <input type="password" value={anthropicKey} onChange={e=>setAnthropicKey(e.target.value)} placeholder="sk-ant-..."
-              style={{width:148,padding:'4px 8px',border:`2px solid ${anthropicKey?'#111':'#DDD'}`,background:'#FFF',fontSize:11,color:'#111',outline:'none',borderRadius:0}}/>
-            {anthropicKey&&<span style={{fontSize:12,color:'#2A2'}}>✓</span>}
           </label>
         </div>
       </header>
@@ -486,26 +468,20 @@ export default function App() {
                   r.readAsDataURL(f)
                 }} style={{display:'none'}}/>
                 {uploadedPhoto&&<Btn onClick={analyzePhoto} disabled={loading}>{loading?'🔮 分析中...':'🔍 分析风水'}</Btn>}
-                {hasAnalyzed&&!showOAIKey&&<Btn onClick={()=>setShowOAIKey(true)}>🔑 OpenAI Key → 效果图</Btn>}
-                {showOAIKey&&(
-                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                    <input type="password" value={openaiKey} onChange={e=>setOpenaiKey(e.target.value)} placeholder="sk-..."
-                      style={{padding:'6px 8px',border:'2px solid #111',background:'#FFF',fontSize:10,fontFamily:'monospace',outline:'none',borderRadius:0}}/>
-                    <Btn disabled={!openaiKey||generatingImage} onClick={async()=>{
-                      if(!openaiKey||generatingImage) return
-                      setGeneratingImage(true)
-                      push('user','🎨 帮我生成风水改造后的效果图')
-                      try {
-                        const r=await fetch('https://api.openai.com/v1/images/generations',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${openaiKey}`},body:JSON.stringify({model:'dall-e-3',prompt:'A cozy room with perfect feng shui, pixel art isometric style, monochrome black white gray palette, clean minimal. No text.',n:1,size:'1024x1024',quality:'standard'})})
-                        const d=await r.json()
-                        if(d.data?.[0]?.url) push('assistant','✨ 效果图来了！',d.data[0].url)
-                        else throw new Error()
-                      } catch { push('assistant','🎨 生成失败，请检查 OpenAI Key') }
-                      finally { setGeneratingImage(false) }
-                    }}>{generatingImage?'✨ 生成中...':'✨ 生成效果图'}</Btn>
-                  </div>
+                {hasAnalyzed&&(
+                  <Btn disabled={generatingImage} onClick={async()=>{
+                    if(generatingImage) return
+                    setGeneratingImage(true)
+                    push('user','🎨 帮我生成风水改造后的效果图')
+                    try {
+                      const r=await fetch('/api/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'dall-e-3',prompt:'A cozy room with perfect feng shui, pixel art isometric style, monochrome black white gray palette, clean minimal. No text.',n:1,size:'1024x1024',quality:'standard'})})
+                      const d=await r.json()
+                      if(d.data?.[0]?.url) push('assistant','✨ 效果图来了！',d.data[0].url)
+                      else throw new Error()
+                    } catch { push('assistant','🎨 生成失败，请重试') }
+                    finally { setGeneratingImage(false) }
+                  }}>{generatingImage?'✨ 生成中...':'✨ 生成效果图'}</Btn>
                 )}
-                <p style={{fontSize:8,color:'#BBB',fontWeight:700,lineHeight:1.6}}>Key 仅本次会话使用，不储存</p>
               </div>
             )}
           </div>
