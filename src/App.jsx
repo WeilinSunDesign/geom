@@ -75,6 +75,7 @@ const T = {
     placeholder: 'Tell me your concerns…',
     sendBtn: '✨ Ask',
     initMsg: '✨ Hello! I\'m your Cyber Feng Shui Advisor.\n\nArrange your room, then share your concerns 🌙\n\n💡 Double-click any furniture to change its colour',
+    rotateBtn: '↻ 45°',
     quick: ['Analyse my whole room', 'Struggling with love lately 😭', 'Work keeps going wrong', 'Sleeping badly', 'Bad fortune'],
     zones: {
       NW:'Qián·Patrons', N:'Kǎn·Career', NE:'Gèn·Knowledge',
@@ -116,6 +117,7 @@ const T = {
     placeholder: '告诉我你的困惑…',
     sendBtn: '问一问 ✨',
     initMsg: '✨ 你好！我是你的赛博风水师。\n\n布置好你的房间后，告诉我你的困惑吧 🌙\n\n💡 双击家具可以换颜色',
+    rotateBtn: '↻ 45°',
     quick: ['帮我全面分析我的房间','最近烂桃花 😭','工作总不顺','睡眠很差','财运不好'],
     zones: {
       NW:'乾·贵人', N:'坎·事业', NE:'艮·学识',
@@ -154,12 +156,12 @@ export default function App() {
   const [colorPickId,setColorPickId]= useState(null)
 
   const [items, setItems] = useState([
-    { id:'1', type:'bed',      emoji:'🛏', x:28,  y:52,  w:88, h:64, color:'#1A1A1A', isWall:false },
-    { id:'2', type:'desk',     emoji:'🖥', x:270, y:28,  w:76, h:52, color:'#3A3A3A', isWall:false },
-    { id:'3', type:'plant',    emoji:'🌿', x:370, y:244, w:36, h:36, color:'#6A6A6A', isWall:false },
-    { id:'4', type:'wardrobe', emoji:'🗄', x:28,  y:228, w:52, h:84, color:'#222',   isWall:false },
-    { id:'5', type:'door',     emoji:'🚪', x:162, y:0,   w:48, h:10, color:'#333',   isWall:true  },
-    { id:'6', type:'window',   emoji:'🪟', x:290, y:330, w:58, h:10, color:'#BBBBBB',isWall:true  },
+    { id:'1', type:'bed',      emoji:'🛏', x:28,  y:52,  w:88, h:64, color:'#1A1A1A', isWall:false, rotation:0 },
+    { id:'2', type:'desk',     emoji:'🖥', x:270, y:28,  w:76, h:52, color:'#3A3A3A', isWall:false, rotation:0 },
+    { id:'3', type:'plant',    emoji:'🌿', x:370, y:244, w:36, h:36, color:'#6A6A6A', isWall:false, rotation:0 },
+    { id:'4', type:'wardrobe', emoji:'🗄', x:28,  y:228, w:52, h:84, color:'#222',   isWall:false, rotation:0 },
+    { id:'5', type:'door',     emoji:'🚪', x:162, y:0,   w:48, h:10, color:'#333',   isWall:true,  rotation:0 },
+    { id:'6', type:'window',   emoji:'🪟', x:290, y:330, w:58, h:10, color:'#BBBBBB',isWall:true,  rotation:0 },
   ])
 
   const drag          = useRef(null)
@@ -280,7 +282,7 @@ export default function App() {
     const sx = f.isWall ? roomW/2-f.w/2 : 80+Math.random()*100
     const sy = f.isWall ? 0 : 60+Math.random()*80
     const pos = f.isWall ? snapToWall(f,sx,sy,roomW,roomH) : {x:sx,y:sy}
-    setItems(p=>[...p,{id:Date.now().toString(),...f,...pos}])
+    setItems(p=>[...p,{id:Date.now().toString(),...f,...pos,rotation:0}])
   }
 
   const compassDirAt = off => t.compass[Math.round(((northAngle+off)+360)%360/45)%8]
@@ -333,6 +335,9 @@ export default function App() {
 
   const push = (role, content, image) =>
     setMessages(p=>[...p, image ? {role,content,image} : {role,content}])
+
+  const rotateItem = () =>
+    setItems(p=>p.map(it=>it.id===selectedId ? {...it, rotation:((it.rotation||0)+45)%360} : it))
 
   // ── Color picker ─────────────────────────────────────────────────────────
 
@@ -429,10 +434,13 @@ export default function App() {
             <Sep/>
             <Btn active={showBagua} onClick={()=>setShowBagua(v=>!v)}>{t.bagua}</Btn>
             {selectedId&&(
-              <Btn danger onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}>{t.del}</Btn>
+              <>
+                <Btn onClick={rotateItem}>{t.rotateBtn}</Btn>
+                <Btn danger onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}>{t.del}</Btn>
+              </>
             )}
             <span style={{marginLeft:'auto',fontSize:10,color:'#999',fontWeight:700,fontFamily:'monospace'}}>
-              {fmtUnit(roomW,unit)} × {fmtUnit(roomH,unit)}
+              {(()=>{ const it=items.find(i=>i.id===selectedId); return it ? `${fmtUnit(it.w,unit)} × ${fmtUnit(it.h,unit)}` : `${fmtUnit(roomW,unit)} × ${fmtUnit(roomH,unit)}` })()}
             </span>
           </div>
 
@@ -503,6 +511,7 @@ export default function App() {
                           boxShadow:isSel?'0 0 0 1px #CC0000,2px 2px 0 rgba(0,0,0,0.2)':'2px 2px 0 rgba(0,0,0,0.15)',
                           display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
                           zIndex:isSel?50:1,userSelect:'none',borderRadius:0,
+                          transform:`rotate(${it.rotation||0}deg)`,transformOrigin:'center center',
                           outline:isSel?'1px dashed #CC0000':'none',outlineOffset:isSel?'2px':'0',
                         }}
                       >
