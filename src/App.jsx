@@ -433,12 +433,6 @@ export default function App() {
             ))}
             <Sep/>
             <Btn active={showBagua} onClick={()=>setShowBagua(v=>!v)}>{t.bagua}</Btn>
-            {selectedId&&(
-              <>
-                <Btn onClick={rotateItem}>{t.rotateBtn}</Btn>
-                <Btn danger onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}>{t.del}</Btn>
-              </>
-            )}
             <span style={{marginLeft:'auto',fontSize:10,color:'#999',fontWeight:700,fontFamily:'monospace'}}>
               {(()=>{ const it=items.find(i=>i.id===selectedId); return it ? `${fmtUnit(it.w,unit)} × ${fmtUnit(it.h,unit)}` : `${fmtUnit(roomW,unit)} × ${fmtUnit(roomH,unit)}` })()}
             </span>
@@ -528,6 +522,26 @@ export default function App() {
                       </div>
                     )
                   })}
+
+                  {/* Floating action buttons above selected item */}
+                  {selectedId&&(()=>{
+                    const it=items.find(i=>i.id===selectedId); if(!it) return null
+                    const above = it.y >= 32
+                    const top   = above ? it.y - 28 : it.y + it.h + 4
+                    return (
+                      <div style={{position:'absolute',left:it.x+it.w/2,top,transform:'translateX(-50%)',display:'flex',gap:3,zIndex:100}}
+                        onMouseDown={e=>e.stopPropagation()}>
+                        <button onClick={rotateItem}
+                          style={{padding:'3px 8px',border:'2px solid #111',background:'#FFF',fontFamily:'monospace',fontSize:10,fontWeight:700,cursor:'pointer',borderRadius:0,whiteSpace:'nowrap'}}>
+                          ↻ 45°
+                        </button>
+                        <button onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}
+                          style={{padding:'3px 7px',border:'2px solid #CC0000',background:'#FFF',color:'#CC0000',fontFamily:'monospace',fontSize:10,fontWeight:700,cursor:'pointer',borderRadius:0}}>
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })()}
 
                   <Compass/>
                 </div>
