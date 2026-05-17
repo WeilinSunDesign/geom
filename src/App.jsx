@@ -31,8 +31,15 @@ const ZONE_POS = {
   W:[0,1], C:[1,1],E:[2,1],
   SW:[0,2],S:[1,2],SE:[2,2],
 }
-const getZone = (xP,yP) =>
-  [['NW','N','NE'],['W','C','E'],['SW','S','SE']][yP<33?0:yP<67?1:2][xP<33?0:xP<67?1:2]
+const SCREEN_ANGLES = [[315,0,45],[270,null,90],[225,180,135]]
+const COMPASS_ZONES  = ['N','NE','E','SE','S','SW','W','NW']
+
+const getZone = (xP, yP, na=0) => {
+  const col=xP<33?0:xP<67?1:2, row=yP<33?0:yP<67?1:2
+  if (col===1&&row===1) return 'C'
+  const sa=SCREEN_ANGLES[row][col]
+  return COMPASS_ZONES[Math.round((((na+sa)%360)+360)%360/45)%8]
+}
 
 const snapToWall = (item, x, y, rW, rH) => {
   const cx = x+item.w/2, cy = y+item.h/2
@@ -207,7 +214,7 @@ export default function App() {
     `房间朝向：顶部为${compassDirAt(0)}，约${toCm(roomW)}×${toCm(roomH)}cm，家具：` +
     items.map(it=>{
       const xP=((it.x+it.w/2)/roomW)*100, yP=((it.y+it.h/2)/roomH)*100
-      return `${it.label}在${ZONE_LABELS[getZone(xP,yP)]}区`
+      return `${it.label}在${ZONE_LABELS[getZone(xP,yP,northAngle)]}区`
     }).join('、')
 
   // ── API ──────────────────────────────────────────────────────────────────
@@ -392,14 +399,16 @@ export default function App() {
                     backgroundSize:`${GRID}px ${GRID}px`}}
                 >
                   {/* Bagua */}
-                  {showBagua&&Object.entries(ZONE_LABELS).map(([zone,label])=>{
-                    const [cx,cy]=ZONE_POS[zone]
+                  {showBagua&&[0,1,2].flatMap(row=>[0,1,2].map(col=>{
+                    const sa=SCREEN_ANGLES[row][col]
+                    const zoneKey=(col===1&&row===1)?'C':COMPASS_ZONES[Math.round((((northAngle+sa)%360)+360)%360/45)%8]
+                    const label=ZONE_LABELS[zoneKey]
                     return (
-                      <div key={zone} style={{position:'absolute',left:`${cx*33.33}%`,top:`${cy*33.33}%`,width:'33.33%',height:'33.33%',border:'1px dashed rgba(0,0,0,0.12)',display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+                      <div key={`${col}-${row}`} style={{position:'absolute',left:`${col*33.33}%`,top:`${row*33.33}%`,width:'33.33%',height:'33.33%',border:'1px dashed rgba(0,0,0,0.12)',display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
                         <span style={{fontSize:7.5,color:'rgba(0,0,0,0.25)',fontWeight:700,textAlign:'center',lineHeight:1.4,whiteSpace:'pre-line',fontFamily:'monospace'}}>{label.replace('·','\n')}</span>
                       </div>
                     )
-                  })}
+                  }))}
 
                   {/* Furniture items */}
                   {items.map(it=>{
