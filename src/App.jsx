@@ -4,33 +4,23 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 
 const MIN_ROOM_W = 240, MIN_ROOM_H = 160, MAX_ROOM_W = 640, MAX_ROOM_H = 480
 const MIN_W = 18, MIN_H = 18
-const CORNER_HIT = 14          // px — corner drag zone radius
-const GRID = 16                // floor grid cell size (px)
-const PX_PER_CM = 1            // 1 px == 1 cm for display
+const CORNER_HIT = 14
+const GRID = 16
+const PX_PER_CM = 1
 
 const FURNITURE = [
-  { type:'bed',      emoji:'🛏', label:'床',   w:88, h:64,  color:'#1A1A1A', isWall:false },
-  { type:'desk',     emoji:'🖥', label:'书桌', w:76, h:52,  color:'#3A3A3A', isWall:false },
-  { type:'wardrobe', emoji:'🗄', label:'衣柜', w:52, h:84,  color:'#222',   isWall:false },
-  { type:'sofa',     emoji:'🛋', label:'沙发', w:92, h:52,  color:'#555',   isWall:false },
-  { type:'plant',    emoji:'🌿', label:'绿植', w:36, h:36,  color:'#6A6A6A', isWall:false },
-  { type:'lamp',     emoji:'💡', label:'灯',   w:28, h:28,  color:'#888',   isWall:false },
-  { type:'mirror',   emoji:'🪞', label:'镜子', w:28, h:62,  color:'#AAAAAA', isWall:false },
-  { type:'crystal',  emoji:'🔮', label:'水晶', w:26, h:26,  color:'#CCCCCC', isWall:false },
-  { type:'door',     emoji:'🚪', label:'门',   w:48, h:10,  color:'#333',   isWall:true  },
-  { type:'window',   emoji:'🪟', label:'窗',   w:58, h:10,  color:'#BBBBBB', isWall:true  },
+  { type:'bed',      emoji:'🛏', w:88, h:64,  color:'#1A1A1A', isWall:false },
+  { type:'desk',     emoji:'🖥', w:76, h:52,  color:'#3A3A3A', isWall:false },
+  { type:'wardrobe', emoji:'🗄', w:52, h:84,  color:'#222',   isWall:false },
+  { type:'sofa',     emoji:'🛋', w:92, h:52,  color:'#555',   isWall:false },
+  { type:'plant',    emoji:'🌿', w:36, h:36,  color:'#6A6A6A', isWall:false },
+  { type:'lamp',     emoji:'💡', w:28, h:28,  color:'#888',   isWall:false },
+  { type:'mirror',   emoji:'🪞', w:28, h:62,  color:'#AAAAAA', isWall:false },
+  { type:'crystal',  emoji:'🔮', w:26, h:26,  color:'#CCCCCC', isWall:false },
+  { type:'door',     emoji:'🚪', w:48, h:10,  color:'#333',   isWall:true  },
+  { type:'window',   emoji:'🪟', w:58, h:10,  color:'#BBBBBB', isWall:true  },
 ]
 
-const ZONE_LABELS = {
-  NW:'乾·贵人', N:'坎·事业', NE:'艮·学识',
-  W:'兑·创意',  C:'中·健康', E:'震·家庭',
-  SW:'坤·爱情', S:'离·名声', SE:'巽·财富',
-}
-const ZONE_POS = {
-  NW:[0,0],N:[1,0],NE:[2,0],
-  W:[0,1], C:[1,1],E:[2,1],
-  SW:[0,2],S:[1,2],SE:[2,2],
-}
 const SCREEN_ANGLES = [[315,0,45],[270,null,90],[225,180,135]]
 const COMPASS_ZONES  = ['N','NE','E','SE','S','SW','W','NW']
 
@@ -61,11 +51,99 @@ const toCm  = px => Math.round(px * PX_PER_CM)
 const toIn  = px => (px * PX_PER_CM / 2.54).toFixed(1)
 const fmtUnit = (px, unit) => unit==='cm' ? `${toCm(px)} cm` : `${toIn(px)}"`
 
-const QUICK = ['帮我全面分析我的房间','最近烂桃花 😭','工作总不顺','睡眠很差','财运不好']
+// ─── Translations ─────────────────────────────────────────────────────────────
+
+const T = {
+  en: {
+    appName: 'geom',
+    appSub: 'CYBER FENG SHUI ADVISOR',
+    langBtn: '中文',
+    birthYear: 'Birth Year',
+    tabRoom: '🏠 Room',
+    tabPhoto: '📷 Photo',
+    unit: 'Unit',
+    bagua: '☯ Bagua',
+    del: '🗑 Delete',
+    add: 'ADD',
+    uploadTitle: 'Click to upload photo',
+    uploadHint: 'JPG / PNG',
+    analyzeBtn: '🔍 Analyse Feng Shui',
+    analyzingBtn: '🔮 Analysing...',
+    generateBtn: '✨ Generate Room Visual',
+    generatingBtn: '✨ Generating...',
+    hint: 'Double-click furniture to recolour · Drag corners to resize · Drag centre to move · Drag compass to set direction',
+    placeholder: 'Tell me your concerns…',
+    sendBtn: '✨ Ask',
+    initMsg: '✨ Hello! I\'m your Cyber Feng Shui Advisor.\n\nArrange your room, then share your concerns 🌙\n\n💡 Double-click any furniture to change its colour',
+    quick: ['Analyse my whole room', 'Struggling with love lately 😭', 'Work keeps going wrong', 'Sleeping badly', 'Bad fortune'],
+    zones: {
+      NW:'Qián·Patrons', N:'Kǎn·Career', NE:'Gèn·Knowledge',
+      W:'Duì·Creativity', C:'Centre·Health', E:'Zhèn·Family',
+      SW:'Kūn·Love', S:'Lí·Fame', SE:'Xùn·Wealth',
+    },
+    compass: ['N','NE','E','SE','S','SW','W','NW'],
+    furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window' },
+    sysPrompt: (room, birth) => `You are "Geom", a stylish and insightful feng shui AI advisor. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Friendly, a little mystical. Use emoji.`,
+    sysPic: (birth) => `You are "Geom", a feng shui AI. Analyse this room photo. User birth year: ${birth||'not provided'}. Cover: ①furniture placement ②door/window flow ③feng shui issues ④2-3 improvement tips. Reply in English, under 280 words, engaging and practical. Use emoji.`,
+    photoMsg: '📷 Uploaded a room photo for feng shui analysis',
+    photoPrompt: 'Please analyse the feng shui of this room and give practical improvement suggestions.',
+    photoHistory: 'Please analyse my room feng shui',
+    generateMsg: '🎨 Generate a feng shui-optimised room visual',
+    generateReply: '✨ Here is your room visual!',
+    generateFail: '🎨 Generation failed, please retry',
+    errConn: '🔮 Connection issue, please try again~',
+    errCrystal: '🔮 The crystal ball went dark, please try again~',
+    errPhoto: '🔮 Photo analysis failed, please retry~',
+  },
+  zh: {
+    appName: '风水AI',
+    appSub: 'CYBER FENG SHUI ADVISOR',
+    langBtn: 'EN',
+    birthYear: '出生年份',
+    tabRoom: '🏠 布置',
+    tabPhoto: '📷 照片',
+    unit: '单位',
+    bagua: '☯ 八卦',
+    del: '🗑 删除',
+    add: 'ADD',
+    uploadTitle: '点击上传照片',
+    uploadHint: 'JPG / PNG',
+    analyzeBtn: '🔍 分析风水',
+    analyzingBtn: '🔮 分析中...',
+    generateBtn: '✨ 生成效果图',
+    generatingBtn: '✨ 生成中...',
+    hint: '双击家具改色 · 角落拖动缩放 · 中间拖动移位 · 拖罗盘设朝向',
+    placeholder: '告诉我你的困惑…',
+    sendBtn: '问一问 ✨',
+    initMsg: '✨ 你好！我是你的赛博风水师。\n\n布置好你的房间后，告诉我你的困惑吧 🌙\n\n💡 双击家具可以换颜色',
+    quick: ['帮我全面分析我的房间','最近烂桃花 😭','工作总不顺','睡眠很差','财运不好'],
+    zones: {
+      NW:'乾·贵人', N:'坎·事业', NE:'艮·学识',
+      W:'兑·创意', C:'中·健康', E:'震·家庭',
+      SW:'坤·爱情', S:'离·名声', SE:'巽·财富',
+    },
+    compass: ['北','东北','东','东南','南','西南','西','西北'],
+    furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗' },
+    sysPrompt: (room, birth) => `你是"风水AI"，年轻人喜欢的赛博风水师，专业有趣有神秘感。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，语气像懂风水的贴心好友。`,
+    sysPic: (birth) => `你是"风水AI"，仔细分析房间照片风水。用户出生年份：${birth||'未提供'}。分析：①家具方位②门窗气流③风水问题④2-3改善建议。轻松有趣，带emoji，280字以内。`,
+    photoMsg: '📷 上传了房间照片，请分析风水',
+    photoPrompt: '请分析这个房间的风水，给出实用改善建议。',
+    photoHistory: '请分析我的房间风水',
+    generateMsg: '🎨 帮我生成风水改造后的效果图',
+    generateReply: '✨ 效果图来了！',
+    generateFail: '🎨 生成失败，请重试',
+    errConn: '🔮 连接出了问题，请稍后重试～',
+    errCrystal: '🔮 水晶球没电了，请稍后再试～',
+    errPhoto: '🔮 照片分析出了问题，请重试～',
+  },
+}
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [lang,        setLang]        = useState('en')
+  const t = T[lang]
+
   const [tab,        setTab]        = useState('room')
   const [roomW,      setRoomW]      = useState(460)
   const [roomH,      setRoomH]      = useState(340)
@@ -76,31 +154,30 @@ export default function App() {
   const [colorPickId,setColorPickId]= useState(null)
 
   const [items, setItems] = useState([
-    { id:'1', type:'bed',      emoji:'🛏', label:'床',   x:28, y:52,  w:88, h:64, color:'#1A1A1A', isWall:false },
-    { id:'2', type:'desk',     emoji:'🖥', label:'书桌', x:270,y:28,  w:76, h:52, color:'#3A3A3A', isWall:false },
-    { id:'3', type:'plant',    emoji:'🌿', label:'绿植', x:370,y:244, w:36, h:36, color:'#6A6A6A', isWall:false },
-    { id:'4', type:'wardrobe', emoji:'🗄', label:'衣柜', x:28, y:228, w:52, h:84, color:'#222',   isWall:false },
-    { id:'5', type:'door',     emoji:'🚪', label:'门',   x:162,y:0,   w:48, h:10, color:'#333',   isWall:true  },
-    { id:'6', type:'window',   emoji:'🪟', label:'窗',   x:290,y:330, w:58, h:10, color:'#BBBBBB',isWall:true  },
+    { id:'1', type:'bed',      emoji:'🛏', x:28,  y:52,  w:88, h:64, color:'#1A1A1A', isWall:false },
+    { id:'2', type:'desk',     emoji:'🖥', x:270, y:28,  w:76, h:52, color:'#3A3A3A', isWall:false },
+    { id:'3', type:'plant',    emoji:'🌿', x:370, y:244, w:36, h:36, color:'#6A6A6A', isWall:false },
+    { id:'4', type:'wardrobe', emoji:'🗄', x:28,  y:228, w:52, h:84, color:'#222',   isWall:false },
+    { id:'5', type:'door',     emoji:'🚪', x:162, y:0,   w:48, h:10, color:'#333',   isWall:true  },
+    { id:'6', type:'window',   emoji:'🪟', x:290, y:330, w:58, h:10, color:'#BBBBBB',isWall:true  },
   ])
 
-  const drag         = useRef(null)
-  const roomRef      = useRef(null)
-  const colorInputRef= useRef(null)
-  const chatEndRef   = useRef(null)
-  const fileInputRef = useRef(null)
+  const drag          = useRef(null)
+  const roomRef       = useRef(null)
+  const colorInputRef = useRef(null)
+  const chatEndRef    = useRef(null)
+  const fileInputRef  = useRef(null)
 
-  const [birthYear,    setBirthYear]    = useState('')
-  const [inputValue,   setInputValue]   = useState('')
-  const [loading,      setLoading]      = useState(false)
-  const [messages,     setMessages]     = useState([
-    { role:'assistant', content:'✨ 你好！我是你的赛博风水师。\n\n布置好你的房间后，告诉我你的困惑吧 🌙\n\n💡 双击家具可以换颜色' },
+  const [birthYear,       setBirthYear]       = useState('')
+  const [inputValue,      setInputValue]      = useState('')
+  const [loading,         setLoading]         = useState(false)
+  const [messages,        setMessages]        = useState([
+    { role:'assistant', content: T.en.initMsg },
   ])
-  const [apiHistory,   setApiHistory]   = useState([])
-
-  const [uploadedPhoto,    setUploadedPhoto]    = useState(null)
-  const [generatingImage,  setGeneratingImage]  = useState(false)
-  const [hasAnalyzed,      setHasAnalyzed]      = useState(false)
+  const [apiHistory,      setApiHistory]      = useState([])
+  const [uploadedPhoto,   setUploadedPhoto]   = useState(null)
+  const [generatingImage, setGeneratingImage] = useState(false)
+  const [hasAnalyzed,     setHasAnalyzed]     = useState(false)
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior:'smooth' }) },
     [messages, loading, generatingImage])
@@ -119,7 +196,7 @@ export default function App() {
   }
 
   const itemMouseDown = (e, id) => {
-    if (e.detail === 2) return          // let dblclick handle
+    if (e.detail === 2) return
     e.preventDefault(); e.stopPropagation()
     setSelectedId(id)
     const corner = getCorner(e, e.currentTarget)
@@ -142,9 +219,10 @@ export default function App() {
     const dx=e.clientX-d.sx, dy=e.clientY-d.sy
 
     if (d.mode==='compass') {
-      const r = roomRef.current?.getBoundingClientRect(); if (!r) return
-      const a = Math.atan2(e.clientX-(r.right-34), -(e.clientY-(r.top+34)))*180/Math.PI
-      setNorthAngle((a+360)%360); return
+      const currentAngle = Math.atan2(e.clientX-d.cx, -(e.clientY-d.cy)) * 180 / Math.PI
+      const delta = currentAngle - d.startAngle
+      setNorthAngle(((d.startNorth + delta) % 360 + 360) % 360)
+      return
     }
 
     if      (d.mode==='room-e')  setRoomW(()=>clamp(d.orig.roomW+dx,  MIN_ROOM_W, MAX_ROOM_W))
@@ -198,24 +276,21 @@ export default function App() {
   const clamp = (v,lo,hi)=>Math.min(hi,Math.max(lo,v))
 
   const addItem = type => {
-    const t = FURNITURE.find(f=>f.type===type)
-    const sx = t.isWall ? roomW/2-t.w/2 : 80+Math.random()*100
-    const sy = t.isWall ? 0 : 60+Math.random()*80
-    const pos = t.isWall ? snapToWall(t,sx,sy,roomW,roomH) : {x:sx,y:sy}
-    setItems(p=>[...p,{id:Date.now().toString(),...t,...pos}])
+    const f = FURNITURE.find(f=>f.type===type)
+    const sx = f.isWall ? roomW/2-f.w/2 : 80+Math.random()*100
+    const sy = f.isWall ? 0 : 60+Math.random()*80
+    const pos = f.isWall ? snapToWall(f,sx,sy,roomW,roomH) : {x:sx,y:sy}
+    setItems(p=>[...p,{id:Date.now().toString(),...f,...pos}])
   }
 
-  const compassDirAt = off => {
-    const a = ((northAngle+off)+360)%360
-    return ['北','东北','东','东南','南','西南','西','西北'][Math.round(a/45)%8]
-  }
+  const compassDirAt = off => t.compass[Math.round(((northAngle+off)+360)%360/45)%8]
 
   const describeRoom = () =>
-    `房间朝向：顶部为${compassDirAt(0)}，约${toCm(roomW)}×${toCm(roomH)}cm，家具：` +
+    `top=${compassDirAt(0)}, ${toCm(roomW)}×${toCm(roomH)}cm, ` +
     items.map(it=>{
       const xP=((it.x+it.w/2)/roomW)*100, yP=((it.y+it.h/2)/roomH)*100
-      return `${it.label}在${ZONE_LABELS[getZone(xP,yP,northAngle)]}区`
-    }).join('、')
+      return `${t.furniture[it.type]}→${t.zones[getZone(xP,yP,northAngle)]}`
+    }).join(', ')
 
   // ── API ──────────────────────────────────────────────────────────────────
 
@@ -226,35 +301,33 @@ export default function App() {
     setLoading(true)
     const hist=[...apiHistory,{role:'user',content:msg}]
     try {
-      const sys=`你是"风水AI"，年轻人喜欢的赛博风水师，专业有趣有神秘感。当前房间：${describeRoom()}。用户出生年份：${birthYear||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，语气像懂风水的贴心好友。`
-      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:sys,messages:hist})})
+      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPrompt(describeRoom(),birthYear),messages:hist})})
       const d=await r.json()
-      const reply=d.content?.[0]?.text||d.error?.message||'🔮 水晶球没电了，请稍后再试～'
+      const reply=d.content?.[0]?.text||d.error?.message||t.errCrystal
       push('assistant',reply)
       setApiHistory([...hist,{role:'assistant',content:reply}])
-    } catch { push('assistant','🔮 连接出了问题，请稍后重试～') }
+    } catch { push('assistant',t.errConn) }
     finally { setLoading(false) }
   }
 
   const analyzePhoto = async () => {
     if(!uploadedPhoto||loading) return
     setLoading(true)
-    push('user','📷 上传了房间照片，请分析风水',uploadedPhoto.preview)
-    const sys=`你是"风水AI"，仔细分析房间照片风水。用户出生年份：${birthYear||'未提供'}。分析：①家具方位②门窗气流③风水问题④2-3改善建议。轻松有趣，带emoji，280字以内。`
+    push('user',t.photoMsg,uploadedPhoto.preview)
     try {
       const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        model:'claude-sonnet-4-6',max_tokens:1000,system:sys,
+        model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPic(birthYear),
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:uploadedPhoto.mediaType,data:uploadedPhoto.base64}},
-          {type:'text',text:'请分析这个房间的风水，给出实用改善建议。'},
+          {type:'text',text:t.photoPrompt},
         ]}],
       })})
       const d=await r.json()
-      const reply=d.content?.[0]?.text||d.error?.message||'🔮 分析失败，请重试'
+      const reply=d.content?.[0]?.text||d.error?.message||'🔮 Analysis failed, please retry'
       push('assistant',reply)
-      setApiHistory(p=>[...p,{role:'user',content:'请分析我的房间风水'},{role:'assistant',content:reply}])
+      setApiHistory(p=>[...p,{role:'user',content:t.photoHistory},{role:'assistant',content:reply}])
       setHasAnalyzed(true)
-    } catch { push('assistant','🔮 照片分析出了问题，请重试～') }
+    } catch { push('assistant',t.errPhoto) }
     finally { setLoading(false) }
   }
 
@@ -277,7 +350,16 @@ export default function App() {
     return (
       <svg width={R*2+4} height={R*2+4}
         style={{position:'absolute',right:8,top:8,cursor:'grab',zIndex:30,filter:'drop-shadow(1px 1px 0 rgba(0,0,0,0.15))'}}
-        onMouseDown={e=>{e.stopPropagation();drag.current={mode:'compass'}}}
+        onMouseDown={e=>{
+          e.stopPropagation()
+          const rect = e.currentTarget.getBoundingClientRect()
+          const cx = rect.left + R + 2, cy = rect.top + R + 2
+          drag.current = {
+            mode:'compass', cx, cy,
+            startAngle: Math.atan2(e.clientX-cx, -(e.clientY-cy)) * 180 / Math.PI,
+            startNorth: northAngle,
+          }
+        }}
       >
         <rect x={2} y={2} width={R*2} height={R*2} fill="white" stroke="#111" strokeWidth={2}/>
         {[0,45,90,135,180,225,270,315].map(deg=>{
@@ -287,13 +369,11 @@ export default function App() {
         })}
         <polygon points={`${pt(-rad,19)} ${pt(-rad+2.65,5)} ${pt(-rad-2.65,5)}`} fill="#CC0000"/>
         <polygon points={`${pt(-rad+Math.PI,19)} ${pt(-rad+2.65,5)} ${pt(-rad-2.65,5)}`} fill="#AAA"/>
-        <text x={pt(-rad,13)[0]} y={pt(-rad,13)[1]+3.5} textAnchor="middle" fontSize={7.5} fontWeight="900" fill="#CC0000" fontFamily="monospace">北</text>
+        <text x={pt(-rad,13)[0]} y={pt(-rad,13)[1]+3.5} textAnchor="middle" fontSize={7.5} fontWeight="900" fill="#CC0000" fontFamily="monospace">{t.compass[0]}</text>
         <rect x={R-2} y={R-2} width={8} height={8} fill="white" stroke="#111" strokeWidth={1.5}/>
       </svg>
     )
   }
-
-  // ── Cursor logic ─────────────────────────────────────────────────────────
 
   const CURSORS = {nw:'nw-resize',ne:'ne-resize',sw:'sw-resize',se:'se-resize',move:'grab'}
 
@@ -302,7 +382,6 @@ export default function App() {
   return (
     <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#F7F7F5',overflow:'hidden'}}>
 
-      {/* Hidden color input */}
       <input ref={colorInputRef} type="color"
         value={colorPickId?(items.find(i=>i.id===colorPickId)?.color??'#888888'):'#888888'}
         onChange={e=>colorPickId&&setItems(p=>p.map(i=>i.id===colorPickId?{...i,color:e.target.value}:i))}
@@ -315,16 +394,21 @@ export default function App() {
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:20}}>🔮</span>
           <div>
-            <h1 style={{fontSize:15,fontWeight:900,color:'#111',letterSpacing:'-0.3px',margin:0}}>风水AI</h1>
-            <p style={{fontSize:7,color:'#999',letterSpacing:'2px',margin:0,fontWeight:700}}>CYBER FENG SHUI ADVISOR</p>
+            <h1 style={{fontSize:15,fontWeight:900,color:'#111',letterSpacing:'-0.3px',margin:0}}>{t.appName}</h1>
+            <p style={{fontSize:7,color:'#999',letterSpacing:'2px',margin:0,fontWeight:700}}>{t.appSub}</p>
           </div>
         </div>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:12}}>
           <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#666',fontWeight:700}}>
-            出生年份
+            {t.birthYear}
             <input type="number" value={birthYear} onChange={e=>setBirthYear(e.target.value)} placeholder="2000"
               style={{width:66,padding:'4px 8px',border:'2px solid #111',background:'#FFF',fontSize:11,color:'#111',outline:'none',borderRadius:0}}/>
           </label>
+          <button onClick={()=>setLang(l=>l==='en'?'zh':'en')}
+            style={{padding:'4px 12px',border:'2px solid #111',background:'#FFF',fontFamily:'monospace',fontSize:10.5,fontWeight:700,cursor:'pointer',borderRadius:0,transition:'all 0.1s'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='#111';e.currentTarget.style.color='#FFF'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='#FFF';e.currentTarget.style.color='#111'}}
+          >{t.langBtn}</button>
         </div>
       </header>
 
@@ -334,24 +418,19 @@ export default function App() {
 
           {/* Toolbar */}
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,flexWrap:'wrap',maxWidth:860,width:'100%'}}>
-            {/* Tab buttons */}
-            {[['room','🏠 布置'],['photo','📷 照片']].map(([t,lbl])=>(
-              <Btn key={t} active={tab===t} onClick={()=>setTab(t)}>{lbl}</Btn>
+            {[['room',t.tabRoom],['photo',t.tabPhoto]].map(([tv,lbl])=>(
+              <Btn key={tv} active={tab===tv} onClick={()=>setTab(tv)}>{lbl}</Btn>
             ))}
             <Sep/>
-            {/* Unit */}
-            <span style={{fontSize:10,color:'#888',fontWeight:700}}>单位</span>
+            <span style={{fontSize:10,color:'#888',fontWeight:700}}>{t.unit}</span>
             {['cm','inch'].map(u=>(
               <Btn key={u} active={unit===u} onClick={()=>setUnit(u)}>{u==='cm'?'CM':'IN'}</Btn>
             ))}
             <Sep/>
-            {/* Bagua */}
-            <Btn active={showBagua} onClick={()=>setShowBagua(v=>!v)}>☯ 八卦</Btn>
-            {/* Delete */}
+            <Btn active={showBagua} onClick={()=>setShowBagua(v=>!v)}>{t.bagua}</Btn>
             {selectedId&&(
-              <Btn danger onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}>🗑 删除</Btn>
+              <Btn danger onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}>{t.del}</Btn>
             )}
-            {/* Size display */}
             <span style={{marginLeft:'auto',fontSize:10,color:'#999',fontWeight:700,fontFamily:'monospace'}}>
               {fmtUnit(roomW,unit)} × {fmtUnit(roomH,unit)}
             </span>
@@ -362,7 +441,7 @@ export default function App() {
 
             {/* ── Furniture palette ── */}
             <div style={{flexShrink:0,display:'flex',flexDirection:'column',gap:3}}>
-              <div style={{fontSize:8,color:'#AAA',fontWeight:700,letterSpacing:'1px',marginBottom:4,textAlign:'center'}}>ADD</div>
+              <div style={{fontSize:8,color:'#AAA',fontWeight:700,letterSpacing:'1px',marginBottom:4,textAlign:'center'}}>{t.add}</div>
               {FURNITURE.map(f=>{
                 const light=!isDark(f.color)
                 return (
@@ -372,7 +451,7 @@ export default function App() {
                     onMouseLeave={e=>e.currentTarget.style.transform='none'}
                   >
                     <span style={{fontSize:11}}>{f.emoji}</span>
-                    <span>{f.label}{f.isWall?' ⌊':'  '}</span>
+                    <span>{t.furniture[f.type]}{f.isWall?' ⌊':'  '}</span>
                   </button>
                 )
               })}
@@ -402,7 +481,7 @@ export default function App() {
                   {showBagua&&[0,1,2].flatMap(row=>[0,1,2].map(col=>{
                     const sa=SCREEN_ANGLES[row][col]
                     const zoneKey=(col===1&&row===1)?'C':COMPASS_ZONES[Math.round((((northAngle+sa)%360)+360)%360/45)%8]
-                    const label=ZONE_LABELS[zoneKey]
+                    const label=t.zones[zoneKey]
                     return (
                       <div key={`${col}-${row}`} style={{position:'absolute',left:`${col*33.33}%`,top:`${row*33.33}%`,width:'33.33%',height:'33.33%',border:'1px dashed rgba(0,0,0,0.12)',display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
                         <span style={{fontSize:7.5,color:'rgba(0,0,0,0.25)',fontWeight:700,textAlign:'center',lineHeight:1.4,whiteSpace:'pre-line',fontFamily:'monospace'}}>{label.replace('·','\n')}</span>
@@ -427,7 +506,6 @@ export default function App() {
                           outline:isSel?'1px dashed #CC0000':'none',outlineOffset:isSel?'2px':'0',
                         }}
                       >
-                        {/* Corner indicators when selected */}
                         {isSel&&['nw','ne','sw','se'].map(c=>(
                           <div key={c} style={{position:'absolute',width:5,height:5,background:'#CC0000',pointerEvents:'none',
                             top:c.includes('n')?-1:'auto',bottom:c.includes('s')?-1:'auto',
@@ -436,7 +514,7 @@ export default function App() {
                         ))}
                         <span style={{fontSize:it.w>44?14:10,lineHeight:1,userSelect:'none'}}>{it.emoji}</span>
                         {it.w>32&&it.h>26&&(
-                          <span style={{fontSize:7.5,color:light?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.8)',fontWeight:700,fontFamily:'monospace',marginTop:2,letterSpacing:'0.3px',userSelect:'none'}}>{it.label}</span>
+                          <span style={{fontSize:7.5,color:light?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.8)',fontWeight:700,fontFamily:'monospace',marginTop:2,letterSpacing:'0.3px',userSelect:'none'}}>{t.furniture[it.type]}</span>
                         )}
                       </div>
                     )
@@ -452,11 +530,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* ── Photo tab content (right side) ── */}
+            {/* ── Photo tab ── */}
             {tab==='photo'&&(
               <div style={{flexShrink:0,width:220,display:'flex',flexDirection:'column',gap:8}}>
                 <div onClick={()=>fileInputRef.current?.click()}
-                  style={{width:'100%',height:150,border:`2px dashed ${uploadedPhoto?'#111':'#CCC'}`,background:'#FAFAFA',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',position:'relative'}}
+                  style={{width:'100%',height:150,border:`2px dashed ${uploadedPhoto?'#111':'#CCC'}`,background:'#FAFAFA',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden'}}
                   onMouseEnter={e=>e.currentTarget.style.borderColor='#111'}
                   onMouseLeave={e=>e.currentTarget.style.borderColor=uploadedPhoto?'#111':'#CCC'}
                 >
@@ -465,8 +543,8 @@ export default function App() {
                   ):(
                     <div style={{textAlign:'center'}}>
                       <div style={{fontSize:28,marginBottom:4}}>📷</div>
-                      <p style={{fontSize:10,fontWeight:700,color:'#555'}}>点击上传照片</p>
-                      <p style={{fontSize:8,color:'#AAA',marginTop:2}}>JPG / PNG</p>
+                      <p style={{fontSize:10,fontWeight:700,color:'#555'}}>{t.uploadTitle}</p>
+                      <p style={{fontSize:8,color:'#AAA',marginTop:2}}>{t.uploadHint}</p>
                     </div>
                   )}
                 </div>
@@ -476,28 +554,27 @@ export default function App() {
                   r.onload=()=>{ setUploadedPhoto({base64:r.result.split(',')[1],mediaType:f.type,preview:r.result}); setHasAnalyzed(false) }
                   r.readAsDataURL(f)
                 }} style={{display:'none'}}/>
-                {uploadedPhoto&&<Btn onClick={analyzePhoto} disabled={loading}>{loading?'🔮 分析中...':'🔍 分析风水'}</Btn>}
+                {uploadedPhoto&&<Btn onClick={analyzePhoto} disabled={loading}>{loading?t.analyzingBtn:t.analyzeBtn}</Btn>}
                 {hasAnalyzed&&(
                   <Btn disabled={generatingImage} onClick={async()=>{
                     if(generatingImage) return
                     setGeneratingImage(true)
-                    push('user','🎨 帮我生成风水改造后的效果图')
+                    push('user',t.generateMsg)
                     try {
                       const r=await fetch('/api/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'dall-e-3',prompt:'A cozy room with perfect feng shui, pixel art isometric style, monochrome black white gray palette, clean minimal. No text.',n:1,size:'1024x1024',quality:'standard'})})
                       const d=await r.json()
-                      if(d.data?.[0]?.url) push('assistant','✨ 效果图来了！',d.data[0].url)
+                      if(d.data?.[0]?.url) push('assistant',t.generateReply,d.data[0].url)
                       else throw new Error()
-                    } catch { push('assistant','🎨 生成失败，请重试') }
+                    } catch { push('assistant',t.generateFail) }
                     finally { setGeneratingImage(false) }
-                  }}>{generatingImage?'✨ 生成中...':'✨ 生成效果图'}</Btn>
+                  }}>{generatingImage?t.generatingBtn:t.generateBtn}</Btn>
                 )}
               </div>
             )}
           </div>
 
-          {/* Hint */}
           <p style={{marginTop:10,fontSize:9,color:'#BBB',fontWeight:700,letterSpacing:'0.3px',fontFamily:'monospace'}}>
-            双击家具改色 · 角落拖动缩放 · 中间拖动移位 · 拖罗盘设朝向
+            {t.hint}
           </p>
         </div>
       </div>
@@ -505,7 +582,6 @@ export default function App() {
       {/* ── Chat section ── */}
       <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,background:'#FFF'}}>
 
-        {/* Messages */}
         <div style={{flex:1,overflowY:'auto',padding:'14px 24px',display:'flex',flexDirection:'column',gap:10}}>
           {messages.map((msg,i)=>(
             <div key={i} style={{display:'flex',flexDirection:msg.role==='user'?'row-reverse':'row',gap:8,alignItems:'flex-start'}}>
@@ -534,7 +610,7 @@ export default function App() {
 
         {/* Quick prompts */}
         <div style={{padding:'0 24px 8px',display:'flex',gap:6,flexWrap:'wrap'}}>
-          {QUICK.map(p=>(
+          {t.quick.map(p=>(
             <button key={p} onClick={()=>sendMessage(p)} disabled={loading}
               style={{padding:'4px 10px',border:'2px solid #111',background:'#FFF',color:'#111',fontFamily:'monospace',fontSize:10.5,fontWeight:700,cursor:loading?'not-allowed':'pointer',opacity:loading?0.5:1,borderRadius:0,transition:'all 0.1s'}}
               onMouseEnter={e=>{if(!loading){e.currentTarget.style.background='#111';e.currentTarget.style.color='#FFF'}}}
@@ -547,12 +623,12 @@ export default function App() {
         <div style={{padding:'6px 24px 12px',display:'flex',gap:8,borderTop:'2px solid #EEE'}}>
           <input value={inputValue} onChange={e=>setInputValue(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()}
-            placeholder="告诉我你的困惑…"
+            placeholder={t.placeholder}
             style={{flex:1,padding:'9px 14px',border:'2px solid #111',background:'#FFF',fontSize:12,color:'#111',outline:'none',fontFamily:'monospace',borderRadius:0}}
           />
           <button onClick={()=>sendMessage()} disabled={loading||!inputValue.trim()}
             style={{padding:'9px 18px',border:'2px solid #111',background:(loading||!inputValue.trim())?'#EEE':'#111',color:(loading||!inputValue.trim())?'#AAA':'#FFF',fontFamily:'monospace',fontSize:12,fontWeight:700,cursor:(loading||!inputValue.trim())?'not-allowed':'pointer',borderRadius:0,whiteSpace:'nowrap'}}
-          >{loading?'…':'问一问 ✨'}</button>
+          >{loading?'…':t.sendBtn}</button>
         </div>
       </div>
     </div>
