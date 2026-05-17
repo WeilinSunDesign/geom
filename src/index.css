@@ -1,0 +1,44 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  -webkit-font-smoothing: antialiased;
+  background: #F7F7F5;
+  color: #111;
+}
+
+button { font-family: inherit; outline: none; }
+input  { font-family: inherit; }
+
+input:focus {
+  outline: 2px solid #111 !important;
+  outline-offset: -2px;
+}
+input[type=number]                              { -moz-appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button  { -webkit-appearance: none; }
+
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #CCC; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #999; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%            { transform: translateY(-6px); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
