@@ -55,7 +55,7 @@ const fmtUnit = (px, unit) => unit==='cm' ? `${toCm(px)} cm` : `${toIn(px)}"`
 
 const T = {
   en: {
-    appName: 'geom',
+    appName: 'GEOM',
     appSub: 'CYBER FENG SHUI ADVISOR',
     langBtn: '中文',
     birthYear: 'Birth Year',
@@ -72,7 +72,8 @@ const T = {
     hint: 'Double-click furniture to recolour · Drag corners to resize · Drag centre to move · Drag compass to set direction',
     placeholder: 'Tell me your concerns…',
     sendBtn: '✨ Ask',
-    initMsg: '✨ Hello! I\'m your Cyber Feng Shui Advisor.\n\nArrange your room, then share your concerns 🌙\n\n💡 Double-click any furniture to change its colour',
+    canvasHint: '📐 Recreate your bedroom layout first — add your furniture, doors & windows, then ask me for feng shui advice below',
+    initMsg: '✨ Hey, I\'m GEOM.\n\nSet up your bedroom layout above, then tell me what\'s on your mind 🌙\n\n💡 Double-click any furniture to change its colour',
     rotateBtn: '↻ 45°',
     customBtn: '+ Custom',
     customTitle: 'Custom Furniture',
@@ -91,13 +92,13 @@ const T = {
     },
     compass: ['N','NE','E','SE','S','SW','W','NW'],
     furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window' },
-    sysPrompt: (room, birth) => `You are "Geom", a stylish and insightful feng shui AI advisor. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Friendly, a little mystical. Use emoji.`,
+    sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Use emoji.`,
     errConn: '🔮 Connection issue, please try again~',
     errCrystal: '🔮 The crystal ball went dark, please try again~',
     errPhoto: '🔮 Photo analysis failed, please retry~',
   },
   zh: {
-    appName: '风水AI',
+    appName: 'GEOM',
     appSub: 'CYBER FENG SHUI ADVISOR',
     langBtn: 'EN',
     birthYear: '出生年份',
@@ -114,7 +115,8 @@ const T = {
     hint: '双击家具改色 · 角落拖动缩放 · 中间拖动移位 · 拖罗盘设朝向',
     placeholder: '告诉我你的困惑…',
     sendBtn: '问一问 ✨',
-    initMsg: '✨ 你好！我是你的赛博风水师。\n\n布置好你的房间后，告诉我你的困惑吧 🌙\n\n💡 双击家具可以换颜色',
+    canvasHint: '📐 先在上方还原你的卧室布局 — 添加家具、门和窗，然后在下方向我提问',
+    initMsg: '✨ 嗨，我是 GEOM。\n\n先把卧室布置好，然后告诉我你的困惑 🌙\n\n💡 双击家具可以换颜色',
     rotateBtn: '↻ 45°',
     customBtn: '+ 自定义',
     customTitle: '自定义家具',
@@ -133,7 +135,7 @@ const T = {
     },
     compass: ['北','东北','东','东南','南','西南','西','西北'],
     furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗' },
-    sysPrompt: (room, birth) => `你是"风水AI"，年轻人喜欢的赛博风水师，专业有趣有神秘感。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，语气像懂风水的贴心好友。`,
+    sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，风格自信神秘有个性。`,
     errConn: '🔮 连接出了问题，请稍后重试～',
     errCrystal: '🔮 水晶球没电了，请稍后再试～',
     errPhoto: '🔮 照片分析出了问题，请重试～',
@@ -352,19 +354,18 @@ export default function App() {
     if (!uploadedPhoto || loading) return
     setLoading(true)
     try {
-      const layoutPrompt = `Analyse this room photo and identify all visible furniture and architectural elements (doors, windows). Return ONLY a valid JSON object with no explanation or markdown:
-{"furniture":[{"type":"<type>","xPct":<number>,"yPct":<number>,"wPct":<number>,"hPct":<number>}]}
-Rules:
-- type must be one of: bed, desk, wardrobe, sofa, plant, lamp, mirror, crystal, door, window
-- xPct/yPct = centre position as % of the room floor (0=left/top edge, 100=right/bottom edge)
-- wPct/hPct = item size as % of room width/height (realistic proportions, max 45)
-- Include ALL visible furniture items
-Return ONLY the JSON object, nothing else.`
+      const layoutPrompt = `Identify every piece of furniture and every door/window visible in this room photo. Reply with ONLY a JSON object — no markdown fences, no explanation:
+{"furniture":[{"type":"...","xPct":0,"yPct":0,"wPct":0,"hPct":0}]}
+Field rules:
+• type — must be one of: bed desk wardrobe sofa plant lamp mirror crystal door window
+• xPct / yPct — centre of item as % of the full image width/height (0 = left/top, 100 = right/bottom)
+• wPct / hPct — item footprint as % of image width/height (typical range 5–40)
+Include every visible item. Output the raw JSON object only.`
 
       const r = await fetch('/api/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6', max_tokens: 1500,
+          model: 'claude-sonnet-4-6', max_tokens: 2000,
           messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: uploadedPhoto.mediaType, data: uploadedPhoto.base64 } },
             { type: 'text', text: layoutPrompt },
@@ -372,10 +373,18 @@ Return ONLY the JSON object, nothing else.`
         })
       })
       const d = await r.json()
+      if (d.error) throw new Error(d.error.message || 'api error')
       const text = d.content?.[0]?.text || ''
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('no json')
-      const parsed = JSON.parse(jsonMatch[0])
+
+      // Extract JSON — handle raw object or markdown code-fenced block
+      let jsonStr = null
+      const fenced = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+      const raw    = text.match(/\{[\s\S]*"furniture"[\s\S]*\}/)
+      if (fenced) jsonStr = fenced[1]
+      else if (raw) jsonStr = raw[0]
+      if (!jsonStr) throw new Error('no json')
+
+      const parsed = JSON.parse(jsonStr)
       const list = parsed.furniture || []
       if (!list.length) throw new Error('empty')
 
@@ -391,8 +400,8 @@ Return ONLY the JSON object, nothing else.`
       setItems(newItems)
       setSelectedId(null)
       push('assistant', lang === 'en'
-        ? `✨ Layout imported! ${newItems.length} items placed on canvas.`
-        : `✨ 布局已导入！${newItems.length} 件家具已放置在平面图上。`)
+        ? `✨ Layout imported — ${newItems.length} items placed on the canvas. Switch to Room tab to fine-tune.`
+        : `✨ 布局已导入，${newItems.length} 件家具已放置在平面图上，切换到布置标签微调。`)
       setTab('room')
     } catch { push('assistant', t.errPhoto) }
     finally { setLoading(false) }
@@ -578,6 +587,11 @@ Return ONLY the JSON object, nothing else.`
               {(()=>{ const it=items.find(i=>i.id===selectedId); return it ? `${fmtUnit(it.w,unit)} × ${fmtUnit(it.h,unit)}` : `${fmtUnit(roomW,unit)} × ${fmtUnit(roomH,unit)}` })()}
             </span>
           </div>
+
+          {/* Canvas hint */}
+          <p style={{margin:'0 0 10px',fontSize:10,color:'#888',fontWeight:700,letterSpacing:'0.2px',fontFamily:'monospace',maxWidth:860,width:'100%',textAlign:'left'}}>
+            {t.canvasHint}
+          </p>
 
           {/* Palette + Room */}
           <div style={{display:'flex',gap:14,alignItems:'flex-start',maxWidth:860,width:'100%'}}>
