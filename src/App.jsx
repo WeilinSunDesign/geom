@@ -209,21 +209,14 @@ export default function App() {
     e.preventDefault(); e.stopPropagation()
     setSelectedId(id)
     setConfirmDeleteId(null)
-    clearTimeout(longPressTimer.current)
 
     const corner = getCorner(e, e.currentTarget)
     const it = items.find(i=>i.id===id)
-    pendingMove.current = {
+    drag.current = {
       mode: corner==='move' ? 'move' : `resize-${corner}`,
       id, sx:e.clientX, sy:e.clientY,
       orig:{ x:it.x, y:it.y, w:it.w, h:it.h, roomW, roomH },
     }
-    longPressTimer.current = setTimeout(() => {
-      if (!pendingMove.current) return
-      drag.current = pendingMove.current
-      setMovingId(id)
-      pendingMove.current = null
-    }, 300)
   }
 
   const roomEdgeDown = (e, mode) => {
@@ -232,18 +225,9 @@ export default function App() {
   }
 
   const onMouseMove = useCallback((e) => {
-    // Cancel long-press if mouse moved too far before timer fired
-    if (pendingMove.current) {
-      const p = pendingMove.current
-      if ((e.clientX-p.sx)**2 + (e.clientY-p.sy)**2 > 25) {
-        clearTimeout(longPressTimer.current)
-        longPressTimer.current = null
-        pendingMove.current = null
-      }
-    }
-
     const d = drag.current; if (!d) return
     const dx=e.clientX-d.sx, dy=e.clientY-d.sy
+    if (d.id && (Math.abs(dx)>2||Math.abs(dy)>2)) setMovingId(d.id)
 
     if (d.mode==='rotate') {
       const angle = Math.atan2(e.clientX-d.cx, -(e.clientY-d.cy)) * 180/Math.PI
@@ -291,9 +275,6 @@ export default function App() {
   }, [])
 
   const onMouseUp = useCallback(()=>{
-    clearTimeout(longPressTimer.current)
-    longPressTimer.current = null
-    pendingMove.current = null
     drag.current = null
     setMovingId(null)
   },[])
