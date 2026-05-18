@@ -164,11 +164,16 @@ export default function App() {
     { id:'6', type:'window',   emoji:'🪟', x:290, y:330, w:58, h:10, color:'#BBBBBB',isWall:true,  rotation:0 },
   ])
 
-  const drag          = useRef(null)
-  const roomRef       = useRef(null)
-  const colorInputRef = useRef(null)
-  const chatEndRef    = useRef(null)
-  const fileInputRef  = useRef(null)
+  const drag           = useRef(null)
+  const roomRef        = useRef(null)
+  const colorInputRef  = useRef(null)
+  const chatEndRef     = useRef(null)
+  const fileInputRef   = useRef(null)
+  const longPressTimer = useRef(null)
+  const pendingMove    = useRef(null)
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [movingId,        setMovingId]        = useState(null)
 
   const [birthYear,       setBirthYear]       = useState('')
   const [inputValue,      setInputValue]      = useState('')
@@ -201,14 +206,22 @@ export default function App() {
     if (e.detail === 2) return
     e.preventDefault(); e.stopPropagation()
     setSelectedId(id)
+    setConfirmDeleteId(null)
+    clearTimeout(longPressTimer.current)
+
     const corner = getCorner(e, e.currentTarget)
     const it = items.find(i=>i.id===id)
-    drag.current = {
+    pendingMove.current = {
       mode: corner==='move' ? 'move' : `resize-${corner}`,
-      id,
-      sx:e.clientX, sy:e.clientY,
+      id, sx:e.clientX, sy:e.clientY,
       orig:{ x:it.x, y:it.y, w:it.w, h:it.h, roomW, roomH },
     }
+    longPressTimer.current = setTimeout(() => {
+      if (!pendingMove.current) return
+      drag.current = pendingMove.current
+      setMovingId(id)
+      pendingMove.current = null
+    }, 300)
   }
 
   const roomEdgeDown = (e, mode) => {
@@ -217,8 +230,25 @@ export default function App() {
   }
 
   const onMouseMove = useCallback((e) => {
+    // Cancel long-press if mouse moved too far before timer fired
+    if (pendingMove.current) {
+      const p = pendingMove.current
+      if ((e.clientX-p.sx)**2 + (e.clientY-p.sy)**2 > 25) {
+        clearTimeout(longPressTimer.current)
+        longPressTimer.current = null
+        pendingMove.current = null
+      }
+    }
+
     const d = drag.current; if (!d) return
     const dx=e.clientX-d.sx, dy=e.clientY-d.sy
+
+    if (d.mode==='rotate') {
+      const angle = Math.atan2(e.clientX-d.cx, -(e.clientY-d.cy)) * 180/Math.PI
+      const snapped = (Math.round(angle/45)*45 % 360 + 360) % 360
+      setItems(prev=>prev.map(it=>it.id===d.id ? {...it,rotation:snapped} : it))
+      return
+    }
 
     if (d.mode==='compass') {
       const currentAngle = Math.atan2(e.clientX-d.cx, -(e.clientY-d.cy)) * 180 / Math.PI
@@ -258,7 +288,13 @@ export default function App() {
     }
   }, [])
 
-  const onMouseUp = useCallback(()=>{ drag.current=null },[])
+  const onMouseUp = useCallback(()=>{
+    clearTimeout(longPressTimer.current)
+    longPressTimer.current = null
+    pendingMove.current = null
+    drag.current = null
+    setMovingId(null)
+  },[])
 
   useEffect(()=>{
     window.addEventListener('mousemove',onMouseMove)
@@ -336,8 +372,6 @@ export default function App() {
   const push = (role, content, image) =>
     setMessages(p=>[...p, image ? {role,content,image} : {role,content}])
 
-  const rotateItem = () =>
-    setItems(p=>p.map(it=>it.id===selectedId ? {...it, rotation:((it.rotation||0)+45)%360} : it))
 
   // ── Color picker ─────────────────────────────────────────────────────────
 
@@ -474,7 +508,7 @@ export default function App() {
                 ))}
 
                 {/* Room */}
-                <div ref={roomRef} onClick={()=>setSelectedId(null)}
+                <div ref={roomRef} onClick={()=>{setSelectedId(null);setConfirmDeleteId(null)}}
                   style={{position:'relative',width:roomW,height:roomH,background:'#FFF',border:'3px solid #111',overflow:'hidden',userSelect:'none',
                     backgroundImage:`linear-gradient(rgba(0,0,0,0.055) 1px, transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.055) 1px,transparent 1px)`,
                     backgroundSize:`${GRID}px ${GRID}px`}}
@@ -524,19 +558,57 @@ export default function App() {
                   })}
 
                   {/* Floating action buttons above selected item */}
-                  {selectedId&&(()=>{
+                  {selectedId && movingId !== selectedId && (()=>{
                     const it=items.find(i=>i.id===selectedId); if(!it) return null
                     const above = it.y >= 32
-                    const top   = above ? it.y - 28 : it.y + it.h + 4
+                    const top   = above ? it.y - 30 : it.y + it.h + 4
+                    const left  = it.x + it.w/2
+                    const floatWrap = {position:'absolute',left,top,transform:'translateX(-50%)',display:'flex',alignItems:'center',gap:3,zIndex:100}
+                    const btnBase   = {fontFamily:'monospace',fontSize:10,fontWeight:700,cursor:'pointer',borderRadius:0,whiteSpace:'nowrap',transition:'opacity 0.15s',opacity:0.4}
+
+                    if (confirmDeleteId === selectedId) {
+                      return (
+                        <div style={{...floatWrap, background:'#FFF', border:'2px solid #111', padding:'4px 8px', gap:6, boxShadow:'2px 2px 0 rgba(0,0,0,0.12)'}}
+                          onMouseDown={e=>e.stopPropagation()}>
+                          <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:'#111'}}>{lang==='en'?'Delete?':'确认删除？'}</span>
+                          <button
+                            style={{...btnBase,padding:'2px 7px',border:'2px solid #CC0000',background:'#CC0000',color:'#FFF',opacity:1}}
+                            onMouseEnter={e=>e.currentTarget.style.opacity='0.75'}
+                            onMouseLeave={e=>e.currentTarget.style.opacity='1'}
+                            onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null);setConfirmDeleteId(null)}}>
+                            {lang==='en'?'Yes':'是'}
+                          </button>
+                          <button
+                            style={{...btnBase,padding:'2px 7px',border:'2px solid #111',background:'#FFF',color:'#111',opacity:1}}
+                            onMouseEnter={e=>e.currentTarget.style.opacity='0.5'}
+                            onMouseLeave={e=>e.currentTarget.style.opacity='1'}
+                            onClick={()=>setConfirmDeleteId(null)}>
+                            {lang==='en'?'No':'否'}
+                          </button>
+                        </div>
+                      )
+                    }
+
                     return (
-                      <div style={{position:'absolute',left:it.x+it.w/2,top,transform:'translateX(-50%)',display:'flex',gap:3,zIndex:100}}
-                        onMouseDown={e=>e.stopPropagation()}>
-                        <button onClick={rotateItem}
-                          style={{padding:'3px 8px',border:'2px solid #111',background:'#FFF',fontFamily:'monospace',fontSize:10,fontWeight:700,cursor:'pointer',borderRadius:0,whiteSpace:'nowrap'}}>
-                          ↻ 45°
+                      <div style={floatWrap} onMouseDown={e=>e.stopPropagation()}>
+                        <button
+                          style={{...btnBase,padding:'3px 8px',border:'2px solid #111',background:'#111',color:'#FFF'}}
+                          onMouseEnter={e=>e.currentTarget.style.opacity='1'}
+                          onMouseLeave={e=>e.currentTarget.style.opacity='0.4'}
+                          onMouseDown={e=>{
+                            e.preventDefault()
+                            if (!roomRef.current) return
+                            const r = roomRef.current.getBoundingClientRect()
+                            drag.current = {mode:'rotate', id:selectedId, cx:r.left+it.x+it.w/2, cy:r.top+it.y+it.h/2}
+                            setMovingId(selectedId)
+                          }}>
+                          ↻
                         </button>
-                        <button onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null)}}
-                          style={{padding:'3px 7px',border:'2px solid #CC0000',background:'#FFF',color:'#CC0000',fontFamily:'monospace',fontSize:10,fontWeight:700,cursor:'pointer',borderRadius:0}}>
+                        <button
+                          style={{...btnBase,padding:'3px 8px',border:'2px solid #CC0000',background:'#CC0000',color:'#FFF'}}
+                          onMouseEnter={e=>e.currentTarget.style.opacity='1'}
+                          onMouseLeave={e=>e.currentTarget.style.opacity='0.4'}
+                          onClick={()=>setConfirmDeleteId(selectedId)}>
                           ✕
                         </button>
                       </div>
