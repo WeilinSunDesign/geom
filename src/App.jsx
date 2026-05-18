@@ -533,6 +533,7 @@ export default function App() {
                       <div key={it.id}
                         onMouseDown={e=>itemMouseDown(e,it.id)}
                         onDoubleClick={e=>triggerColor(e,it.id)}
+                        onClick={e=>e.stopPropagation()}
                         onMouseMove={e=>{ if(drag.current) return; e.currentTarget.style.cursor=CURSORS[getCorner(e,e.currentTarget)] }}
                         style={{position:'absolute',left:it.x,top:it.y,width:it.w,height:it.h,
                           background:it.color,border:`2px solid ${isSel?'#CC0000':'rgba(0,0,0,0.45)'}`,
@@ -569,7 +570,7 @@ export default function App() {
                     if (confirmDeleteId === selectedId) {
                       return (
                         <div style={{...floatWrap, background:'#FFF', border:'2px solid #111', padding:'4px 8px', gap:6, boxShadow:'2px 2px 0 rgba(0,0,0,0.12)'}}
-                          onMouseDown={e=>e.stopPropagation()}>
+                          onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
                           <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:'#111'}}>{lang==='en'?'Delete?':'确认删除？'}</span>
                           <button
                             style={{...btnBase,padding:'2px 7px',border:'2px solid #CC0000',background:'#CC0000',color:'#FFF',opacity:1}}
@@ -590,7 +591,7 @@ export default function App() {
                     }
 
                     return (
-                      <div style={floatWrap} onMouseDown={e=>e.stopPropagation()}>
+                      <div style={floatWrap} onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
                         <button
                           style={{...btnBase,padding:'3px 8px',border:'2px solid #111',background:'#111',color:'#FFF'}}
                           onMouseEnter={e=>e.currentTarget.style.opacity='1'}
