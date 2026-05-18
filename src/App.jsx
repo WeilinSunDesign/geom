@@ -76,6 +76,15 @@ const T = {
     sendBtn: '✨ Ask',
     initMsg: '✨ Hello! I\'m your Cyber Feng Shui Advisor.\n\nArrange your room, then share your concerns 🌙\n\n💡 Double-click any furniture to change its colour',
     rotateBtn: '↻ 45°',
+    customBtn: '+ Custom',
+    customTitle: 'Custom Furniture',
+    iconLabel: 'Icon',
+    nameLabel: 'Name',
+    wLabel: 'W',
+    hLabel: 'H',
+    cancelBtn: 'Cancel',
+    addBtn: 'Add to Room',
+    namePlaceholder: 'e.g. Bookshelf',
     quick: ['Analyse my whole room', 'Struggling with love lately 😭', 'Work keeps going wrong', 'Sleeping badly', 'Bad fortune'],
     zones: {
       NW:'Qián·Patrons', N:'Kǎn·Career', NE:'Gèn·Knowledge',
@@ -118,6 +127,15 @@ const T = {
     sendBtn: '问一问 ✨',
     initMsg: '✨ 你好！我是你的赛博风水师。\n\n布置好你的房间后，告诉我你的困惑吧 🌙\n\n💡 双击家具可以换颜色',
     rotateBtn: '↻ 45°',
+    customBtn: '+ 自定义',
+    customTitle: '自定义家具',
+    iconLabel: '图标',
+    nameLabel: '名称',
+    wLabel: '宽',
+    hLabel: '高',
+    cancelBtn: '取消',
+    addBtn: '添加到房间',
+    namePlaceholder: '如：书架',
     quick: ['帮我全面分析我的房间','最近烂桃花 😭','工作总不顺','睡眠很差','财运不好'],
     zones: {
       NW:'乾·贵人', N:'坎·事业', NE:'艮·学识',
@@ -172,8 +190,10 @@ export default function App() {
   const longPressTimer = useRef(null)
   const pendingMove    = useRef(null)
 
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
-  const [movingId,        setMovingId]        = useState(null)
+  const [confirmDeleteId,  setConfirmDeleteId]  = useState(null)
+  const [movingId,         setMovingId]         = useState(null)
+  const [showCustomModal,  setShowCustomModal]  = useState(false)
+  const [customForm,       setCustomForm]       = useState({ emoji:'📦', name:'', w:60, h:60 })
 
   const [birthYear,       setBirthYear]       = useState('')
   const [inputValue,      setInputValue]      = useState('')
@@ -327,7 +347,7 @@ export default function App() {
     `top=${compassDirAt(0)}, ${toCm(roomW)}×${toCm(roomH)}cm, ` +
     items.map(it=>{
       const xP=((it.x+it.w/2)/roomW)*100, yP=((it.y+it.h/2)/roomH)*100
-      return `${t.furniture[it.type]}→${t.zones[getZone(xP,yP,northAngle)]}`
+      return `${it.customLabel||t.furniture[it.type]}→${t.zones[getZone(xP,yP,northAngle)]}`
     }).join(', ')
 
   // ── API ──────────────────────────────────────────────────────────────────
@@ -371,6 +391,21 @@ export default function App() {
 
   const push = (role, content, image) =>
     setMessages(p=>[...p, image ? {role,content,image} : {role,content}])
+
+  const addCustomItem = () => {
+    if (!customForm.name.trim()) return
+    const w = Math.max(18, Math.min(200, customForm.w))
+    const h = Math.max(18, Math.min(200, customForm.h))
+    setItems(p=>[...p, {
+      id: Date.now().toString(), type:'custom',
+      emoji: customForm.emoji||'📦', customLabel: customForm.name.trim(),
+      x: clamp(80+Math.random()*80, 0, roomW-w),
+      y: clamp(60+Math.random()*80, 0, roomH-h),
+      w, h, color:'#888888', isWall:false, rotation:0,
+    }])
+    setShowCustomModal(false)
+    setCustomForm({ emoji:'📦', name:'', w:60, h:60 })
+  }
 
 
   // ── Color picker ─────────────────────────────────────────────────────────
@@ -420,6 +455,69 @@ export default function App() {
 
   return (
     <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#F7F7F5',overflow:'hidden'}}>
+
+      {/* ── Custom furniture modal ── */}
+      {showCustomModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setShowCustomModal(false)}>
+          <div style={{background:'#FFF',border:'3px solid #111',padding:24,width:300,boxShadow:'5px 5px 0 #111',fontFamily:'monospace'}}
+            onClick={e=>e.stopPropagation()}>
+            <h2 style={{margin:'0 0 18px',fontSize:14,fontWeight:900,letterSpacing:'-0.3px',color:'#111'}}>{t.customTitle}</h2>
+
+            {/* Icon */}
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:9,fontWeight:700,color:'#888',letterSpacing:'1px',marginBottom:6}}>{t.iconLabel}</div>
+              <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:8}}>
+                <div style={{fontSize:24,width:38,height:38,border:'2px solid #111',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{customForm.emoji}</div>
+                <input value={customForm.emoji} onChange={e=>setCustomForm(f=>({...f,emoji:e.target.value}))}
+                  style={{width:52,padding:'6px 8px',border:'2px solid #111',fontFamily:'monospace',fontSize:18,outline:'none',borderRadius:0,textAlign:'center'}}
+                  maxLength={2}/>
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                {['🛋','🛏','🖥','🗄','🚪','🪟','🌿','💡','🪞','🔮','🛁','🪑','📺','🪴','🎸','📚','💻','🎮','🖼','🧺','🎹','🎨','🧸','🚿'].map(em=>(
+                  <button key={em} onClick={()=>setCustomForm(f=>({...f,emoji:em}))}
+                    style={{fontSize:16,width:30,height:30,border:`2px solid ${customForm.emoji===em?'#111':'#DDD'}`,background:customForm.emoji===em?'#111':'#FFF',cursor:'pointer',borderRadius:0,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.1s'}}>
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Name */}
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:9,fontWeight:700,color:'#888',letterSpacing:'1px',marginBottom:6}}>{t.nameLabel}</div>
+              <input value={customForm.name} onChange={e=>setCustomForm(f=>({...f,name:e.target.value}))}
+                placeholder={t.namePlaceholder} maxLength={12}
+                onKeyDown={e=>e.key==='Enter'&&addCustomItem()}
+                style={{width:'100%',padding:'7px 10px',border:'2px solid #111',fontFamily:'monospace',fontSize:12,outline:'none',borderRadius:0,boxSizing:'border-box'}}/>
+            </div>
+
+            {/* Dimensions */}
+            <div style={{marginBottom:20,display:'flex',gap:10}}>
+              {[['w',t.wLabel],[' h',t.hLabel]].map(([k,lbl])=>(
+                <div key={k} style={{flex:1}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#888',letterSpacing:'1px',marginBottom:6}}>{lbl} (px)</div>
+                  <input type="number" value={customForm[k.trim()]} min={18} max={200}
+                    onChange={e=>setCustomForm(f=>({...f,[k.trim()]:Math.max(18,Math.min(200,+e.target.value||18))}))}
+                    style={{width:'100%',padding:'7px 10px',border:'2px solid #111',fontFamily:'monospace',fontSize:12,outline:'none',borderRadius:0,boxSizing:'border-box'}}/>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button onClick={()=>setShowCustomModal(false)}
+                style={{padding:'7px 16px',border:'2px solid #111',background:'#FFF',color:'#111',fontFamily:'monospace',fontSize:11,fontWeight:700,cursor:'pointer',borderRadius:0}}>
+                {t.cancelBtn}
+              </button>
+              <button onClick={addCustomItem} disabled={!customForm.name.trim()}
+                style={{padding:'7px 16px',border:'2px solid #111',background:customForm.name.trim()?'#111':'#CCC',color:customForm.name.trim()?'#FFF':'#888',fontFamily:'monospace',fontSize:11,fontWeight:700,cursor:customForm.name.trim()?'pointer':'not-allowed',borderRadius:0}}>
+                {t.addBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <input ref={colorInputRef} type="color"
         value={colorPickId?(items.find(i=>i.id===colorPickId)?.color??'#888888'):'#888888'}
@@ -491,6 +589,14 @@ export default function App() {
                   </button>
                 )
               })}
+              <button onClick={()=>setShowCustomModal(true)}
+                style={{padding:'4px 8px',border:'2px dashed #999',background:'#FFF',color:'#666',fontSize:9,fontWeight:700,cursor:'pointer',borderRadius:0,textAlign:'left',display:'flex',alignItems:'center',gap:5,minWidth:80,marginTop:4,transition:'all 0.1s'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor='#111';e.currentTarget.style.color='#111'}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='#999';e.currentTarget.style.color='#666'}}
+              >
+                <span style={{fontSize:11}}>✚</span>
+                <span>{t.customBtn}</span>
+              </button>
             </div>
 
             {/* ── Room canvas area ── */}
@@ -552,7 +658,7 @@ export default function App() {
                         ))}
                         <span style={{fontSize:it.w>44?14:10,lineHeight:1,userSelect:'none'}}>{it.emoji}</span>
                         {it.w>32&&it.h>26&&(
-                          <span style={{fontSize:7.5,color:light?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.8)',fontWeight:700,fontFamily:'monospace',marginTop:2,letterSpacing:'0.3px',userSelect:'none'}}>{t.furniture[it.type]}</span>
+                          <span style={{fontSize:7.5,color:light?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.8)',fontWeight:700,fontFamily:'monospace',marginTop:2,letterSpacing:'0.3px',userSelect:'none'}}>{it.customLabel||t.furniture[it.type]}</span>
                         )}
                       </div>
                     )
