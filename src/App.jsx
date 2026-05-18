@@ -573,9 +573,7 @@ Include every visible item. Output the raw JSON object only.`
 
           {/* Toolbar */}
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,flexWrap:'wrap',maxWidth:860,width:'100%'}}>
-            {[['room',t.tabRoom],['photo',t.tabPhoto]].map(([tv,lbl])=>(
-              <Btn key={tv} active={tab===tv} onClick={()=>setTab(tv)}>{lbl}</Btn>
-            ))}
+            <Btn active={tab==='room'} onClick={()=>setTab('room')}>{t.tabRoom}</Btn>
             <Sep/>
             <span style={{fontSize:10,color:'#888',fontWeight:700}}>{t.unit}</span>
             {['cm','inch'].map(u=>(
@@ -755,33 +753,6 @@ Include every visible item. Output the raw JSON object only.`
               </div>
             </div>
 
-            {/* ── Photo tab ── */}
-            {tab==='photo'&&(
-              <div style={{flexShrink:0,width:220,display:'flex',flexDirection:'column',gap:8}}>
-                <div onClick={()=>fileInputRef.current?.click()}
-                  style={{width:'100%',height:150,border:`2px dashed ${uploadedPhoto?'#111':'#CCC'}`,background:'#FAFAFA',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden'}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor='#111'}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor=uploadedPhoto?'#111':'#CCC'}
-                >
-                  {uploadedPhoto?(
-                    <img src={uploadedPhoto.preview} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                  ):(
-                    <div style={{textAlign:'center'}}>
-                      <div style={{fontSize:28,marginBottom:4}}>📷</div>
-                      <p style={{fontSize:10,fontWeight:700,color:'#555'}}>{t.uploadTitle}</p>
-                      <p style={{fontSize:8,color:'#AAA',marginTop:2}}>{t.uploadHint}</p>
-                    </div>
-                  )}
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={e=>{
-                  const f=e.target.files[0]; if(!f) return
-                  const r=new FileReader()
-                  r.onload=()=>{ setUploadedPhoto({base64:r.result.split(',')[1],mediaType:f.type,preview:r.result}) }
-                  r.readAsDataURL(f)
-                }} style={{display:'none'}}/>
-                {uploadedPhoto&&<Btn onClick={analyzePhoto} disabled={loading}>{loading?t.analyzingBtn:t.analyzeBtn}</Btn>}
-              </div>
-            )}
           </div>
 
           <p style={{marginTop:10,fontSize:9,color:'#BBB',fontWeight:700,letterSpacing:'0.3px',fontFamily:'monospace'}}>
