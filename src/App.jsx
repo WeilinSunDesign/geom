@@ -67,10 +67,8 @@ const T = {
     add: 'ADD',
     uploadTitle: 'Click to upload photo',
     uploadHint: 'JPG / PNG',
-    analyzeBtn: '🔍 Analyse Feng Shui',
-    analyzingBtn: '🔮 Analysing...',
-    generateBtn: '✨ Generate Room Visual',
-    generatingBtn: '✨ Generating...',
+    analyzeBtn: '🏠 Import Layout',
+    analyzingBtn: '⏳ Importing...',
     hint: 'Double-click furniture to recolour · Drag corners to resize · Drag centre to move · Drag compass to set direction',
     placeholder: 'Tell me your concerns…',
     sendBtn: '✨ Ask',
@@ -94,13 +92,6 @@ const T = {
     compass: ['N','NE','E','SE','S','SW','W','NW'],
     furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window' },
     sysPrompt: (room, birth) => `You are "Geom", a stylish and insightful feng shui AI advisor. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Friendly, a little mystical. Use emoji.`,
-    sysPic: (birth) => `You are "Geom", a feng shui AI. Analyse this room photo. User birth year: ${birth||'not provided'}. Cover: ①furniture placement ②door/window flow ③feng shui issues ④2-3 improvement tips. Reply in English, under 280 words, engaging and practical. Use emoji.`,
-    photoMsg: '📷 Uploaded a room photo for feng shui analysis',
-    photoPrompt: 'Please analyse the feng shui of this room and give practical improvement suggestions.',
-    photoHistory: 'Please analyse my room feng shui',
-    generateMsg: '🎨 Generate a feng shui-optimised room visual',
-    generateReply: '✨ Here is your room visual!',
-    generateFail: '🎨 Generation failed, please retry',
     errConn: '🔮 Connection issue, please try again~',
     errCrystal: '🔮 The crystal ball went dark, please try again~',
     errPhoto: '🔮 Photo analysis failed, please retry~',
@@ -118,10 +109,8 @@ const T = {
     add: 'ADD',
     uploadTitle: '点击上传照片',
     uploadHint: 'JPG / PNG',
-    analyzeBtn: '🔍 分析风水',
-    analyzingBtn: '🔮 分析中...',
-    generateBtn: '✨ 生成效果图',
-    generatingBtn: '✨ 生成中...',
+    analyzeBtn: '🏠 导入布局',
+    analyzingBtn: '⏳ 导入中...',
     hint: '双击家具改色 · 角落拖动缩放 · 中间拖动移位 · 拖罗盘设朝向',
     placeholder: '告诉我你的困惑…',
     sendBtn: '问一问 ✨',
@@ -145,13 +134,6 @@ const T = {
     compass: ['北','东北','东','东南','南','西南','西','西北'],
     furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗' },
     sysPrompt: (room, birth) => `你是"风水AI"，年轻人喜欢的赛博风水师，专业有趣有神秘感。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，语气像懂风水的贴心好友。`,
-    sysPic: (birth) => `你是"风水AI"，仔细分析房间照片风水。用户出生年份：${birth||'未提供'}。分析：①家具方位②门窗气流③风水问题④2-3改善建议。轻松有趣，带emoji，280字以内。`,
-    photoMsg: '📷 上传了房间照片，请分析风水',
-    photoPrompt: '请分析这个房间的风水，给出实用改善建议。',
-    photoHistory: '请分析我的房间风水',
-    generateMsg: '🎨 帮我生成风水改造后的效果图',
-    generateReply: '✨ 效果图来了！',
-    generateFail: '🎨 生成失败，请重试',
     errConn: '🔮 连接出了问题，请稍后重试～',
     errCrystal: '🔮 水晶球没电了，请稍后再试～',
     errPhoto: '🔮 照片分析出了问题，请重试～',
@@ -203,11 +185,9 @@ export default function App() {
   ])
   const [apiHistory,      setApiHistory]      = useState([])
   const [uploadedPhoto,   setUploadedPhoto]   = useState(null)
-  const [generatingImage, setGeneratingImage] = useState(false)
-  const [hasAnalyzed,     setHasAnalyzed]     = useState(false)
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior:'smooth' }) },
-    [messages, loading, generatingImage])
+    [messages, loading])
 
   // ── Drag ─────────────────────────────────────────────────────────────────
 
@@ -369,23 +349,52 @@ export default function App() {
   }
 
   const analyzePhoto = async () => {
-    if(!uploadedPhoto||loading) return
+    if (!uploadedPhoto || loading) return
     setLoading(true)
-    push('user',t.photoMsg,uploadedPhoto.preview)
     try {
-      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPic(birthYear),
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:uploadedPhoto.mediaType,data:uploadedPhoto.base64}},
-          {type:'text',text:t.photoPrompt},
-        ]}],
-      })})
-      const d=await r.json()
-      const reply=d.content?.[0]?.text||d.error?.message||'🔮 Analysis failed, please retry'
-      push('assistant',reply)
-      setApiHistory(p=>[...p,{role:'user',content:t.photoHistory},{role:'assistant',content:reply}])
-      setHasAnalyzed(true)
-    } catch { push('assistant',t.errPhoto) }
+      const layoutPrompt = `Analyse this room photo and identify all visible furniture and architectural elements (doors, windows). Return ONLY a valid JSON object with no explanation or markdown:
+{"furniture":[{"type":"<type>","xPct":<number>,"yPct":<number>,"wPct":<number>,"hPct":<number>}]}
+Rules:
+- type must be one of: bed, desk, wardrobe, sofa, plant, lamp, mirror, crystal, door, window
+- xPct/yPct = centre position as % of the room floor (0=left/top edge, 100=right/bottom edge)
+- wPct/hPct = item size as % of room width/height (realistic proportions, max 45)
+- Include ALL visible furniture items
+Return ONLY the JSON object, nothing else.`
+
+      const r = await fetch('/api/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 1500,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: uploadedPhoto.mediaType, data: uploadedPhoto.base64 } },
+            { type: 'text', text: layoutPrompt },
+          ]}],
+        })
+      })
+      const d = await r.json()
+      const text = d.content?.[0]?.text || ''
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('no json')
+      const parsed = JSON.parse(jsonMatch[0])
+      const list = parsed.furniture || []
+      if (!list.length) throw new Error('empty')
+
+      const newItems = list.map((f, i) => {
+        const base = FURNITURE.find(b => b.type === f.type) || FURNITURE[0]
+        const w = Math.round(Math.max(MIN_W, (f.wPct / 100) * roomW))
+        const h = Math.round(Math.max(MIN_H, (f.hPct / 100) * roomH))
+        const x = clamp(Math.round((f.xPct / 100) * roomW - w / 2), 0, roomW - w)
+        const y = clamp(Math.round((f.yPct / 100) * roomH - h / 2), 0, roomH - h)
+        return { id: (Date.now() + i).toString(), type: base.type, emoji: base.emoji, x, y, w, h, color: base.color, isWall: base.isWall, rotation: 0 }
+      })
+
+      setItems(newItems)
+      setSelectedId(null)
+      push('assistant', lang === 'en'
+        ? `✨ Layout imported! ${newItems.length} items placed on canvas.`
+        : `✨ 布局已导入！${newItems.length} 件家具已放置在平面图上。`)
+      setTab('room')
+    } catch { push('assistant', t.errPhoto) }
     finally { setLoading(false) }
   }
 
@@ -753,24 +762,10 @@ export default function App() {
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={e=>{
                   const f=e.target.files[0]; if(!f) return
                   const r=new FileReader()
-                  r.onload=()=>{ setUploadedPhoto({base64:r.result.split(',')[1],mediaType:f.type,preview:r.result}); setHasAnalyzed(false) }
+                  r.onload=()=>{ setUploadedPhoto({base64:r.result.split(',')[1],mediaType:f.type,preview:r.result}) }
                   r.readAsDataURL(f)
                 }} style={{display:'none'}}/>
                 {uploadedPhoto&&<Btn onClick={analyzePhoto} disabled={loading}>{loading?t.analyzingBtn:t.analyzeBtn}</Btn>}
-                {hasAnalyzed&&(
-                  <Btn disabled={generatingImage} onClick={async()=>{
-                    if(generatingImage) return
-                    setGeneratingImage(true)
-                    push('user',t.generateMsg)
-                    try {
-                      const r=await fetch('/api/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'dall-e-3',prompt:'A cozy room with perfect feng shui, pixel art isometric style, monochrome black white gray palette, clean minimal. No text.',n:1,size:'1024x1024',quality:'standard'})})
-                      const d=await r.json()
-                      if(d.data?.[0]?.url) push('assistant',t.generateReply,d.data[0].url)
-                      else throw new Error()
-                    } catch { push('assistant',t.generateFail) }
-                    finally { setGeneratingImage(false) }
-                  }}>{generatingImage?t.generatingBtn:t.generateBtn}</Btn>
-                )}
               </div>
             )}
           </div>
