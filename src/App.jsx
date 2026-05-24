@@ -98,7 +98,7 @@ const T = {
     placeholder: 'Tell me your concerns…',
     sendBtn: '✨ Ask',
     canvasHint: '📐 Recreate your bedroom layout — add furniture, doors & windows, then ask for feng shui advice',
-    initMsg: '✨ Hey, I\'m GEOM.\n\nSet up your bedroom layout above, then tell me what\'s on your mind 🌙\n\n💡 Double-click any furniture to change its colour',
+    initMsg: 'Hey, I\'m GEOM.\n\nSet up your bedroom layout above, then tell me what\'s on your mind.\n\nDouble-click any furniture to change its colour.',
     customBtn: '+ Custom',
     customTitle: 'Custom Furniture',
     iconLabel: 'Icon',
@@ -117,10 +117,10 @@ const T = {
     },
     compass: ['N','NE','E','SE','S','SW','W','NW'],
     furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window', iwall:'Wall' },
-    saveBtn: '💾 Save',
-    renewBtn: '🔄 Renew',
-    layoutSaved: (isRenew) => isRenew ? '✅ Layout updated! I\'ve synced your latest room.' : '✅ Layout saved! Ask me anything about your room.',
-    sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM.${room ? ` Room layout: ${room}.` : ''} User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Use emoji.`,
+    saveBtn: 'Save',
+    renewBtn: 'Renew',
+    layoutSaved: (isRenew) => isRenew ? 'Layout updated. I have synced your latest room.' : 'Layout saved. Ask me anything about your room.',
+    sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM.${room ? ` Room layout: ${room}.` : ''} User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Do not use emojis, asterisks, quotation marks, or dashes.`,
     errConn: '🔮 Connection issue, please try again~',
     errCrystal: '🔮 The crystal ball went dark, please try again~',
     errPhoto: '🔮 Photo analysis failed, please retry~',
@@ -138,7 +138,7 @@ const T = {
     placeholder: '告诉我你的困惑…',
     sendBtn: '问一问 ✨',
     canvasHint: '📐 先还原你的卧室布局 — 添加家具、门和窗，然后向我提问',
-    initMsg: '✨ 嗨，我是 GEOM。\n\n先把卧室布置好，然后告诉我你的困惑 🌙\n\n💡 双击家具可以换颜色',
+    initMsg: '嗨，我是 GEOM。\n\n先把卧室布置好，然后告诉我你的困惑。\n\n双击家具可以换颜色。',
     customBtn: '+ 自定义',
     customTitle: '自定义家具',
     iconLabel: '图标',
@@ -157,10 +157,10 @@ const T = {
     },
     compass: ['北','东北','东','东南','南','西南','西','西北'],
     furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗', iwall:'墙' },
-    saveBtn: '💾 保存布局',
-    renewBtn: '🔄 更新布局',
-    layoutSaved: (isRenew) => isRenew ? '✅ 布局已更新！我已同步你的最新房间信息。' : '✅ 布局已保存！现在可以问我关于房间的问题了。',
-    sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。${room ? `当前房间：${room}。` : ''}用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，风格自信神秘有个性。`,
+    saveBtn: '保存布局',
+    renewBtn: '更新布局',
+    layoutSaved: (isRenew) => isRenew ? '布局已更新，我已同步你的最新房间信息。' : '布局已保存，现在可以问我关于房间的问题了。',
+    sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。${room ? `当前房间：${room}。` : ''}用户出生年份：${birth||'未提供'}。回复200字以内，给1-2个可操作建议，风格自信神秘有个性。不要使用emoji、星号、引号或破折号。`,
     errConn: '🔮 连接出了问题，请稍后重试～',
     errCrystal: '🔮 水晶球没电了，请稍后再试～',
     errPhoto: '🔮 照片分析出了问题，请重试～',
@@ -395,7 +395,7 @@ export default function App() {
     try {
       const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPrompt(savedLayout,birthYear),messages:hist})})
       const d=await r.json()
-      const reply=d.content?.[0]?.text||d.error?.message||t.errCrystal
+      const reply=cleanReply(d.content?.[0]?.text||d.error?.message||t.errCrystal)
       push('assistant',reply)
       setApiHistory([...hist,{role:'assistant',content:reply}])
     } catch { push('assistant',t.errConn) }
@@ -403,6 +403,13 @@ export default function App() {
   }
 
   const push = (role, content) => setMessages(p=>[...p,{role,content}])
+
+  const cleanReply = text =>
+    text
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{FE00}-\u{FE0F}]/gu, '')
+      .replace(/[*“”‘’「」『』—–]/g, '')
+      .replace(/ {2,}/g, ' ')
+      .trim()
 
   const addCustomItem = () => {
     if (!customForm.name.trim()) return
