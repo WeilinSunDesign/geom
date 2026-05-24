@@ -117,7 +117,10 @@ const T = {
     },
     compass: ['N','NE','E','SE','S','SW','W','NW'],
     furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window', iwall:'Wall' },
-    sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Use emoji.`,
+    saveBtn: '💾 Save',
+    renewBtn: '🔄 Renew',
+    layoutSaved: (isRenew) => isRenew ? '✅ Layout updated! I\'ve synced your latest room.' : '✅ Layout saved! Ask me anything about your room.',
+    sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM.${room ? ` Room layout: ${room}.` : ''} User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Use emoji.`,
     errConn: '🔮 Connection issue, please try again~',
     errCrystal: '🔮 The crystal ball went dark, please try again~',
     errPhoto: '🔮 Photo analysis failed, please retry~',
@@ -154,7 +157,10 @@ const T = {
     },
     compass: ['北','东北','东','东南','南','西南','西','西北'],
     furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗', iwall:'墙' },
-    sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，风格自信神秘有个性。`,
+    saveBtn: '💾 保存布局',
+    renewBtn: '🔄 更新布局',
+    layoutSaved: (isRenew) => isRenew ? '✅ 布局已更新！我已同步你的最新房间信息。' : '✅ 布局已保存！现在可以问我关于房间的问题了。',
+    sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。${room ? `当前房间：${room}。` : ''}用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，风格自信神秘有个性。`,
     errConn: '🔮 连接出了问题，请稍后重试～',
     errCrystal: '🔮 水晶球没电了，请稍后再试～',
     errPhoto: '🔮 照片分析出了问题，请重试～',
@@ -200,6 +206,8 @@ export default function App() {
   const [movingId,        setMovingId]        = useState(null)
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [customForm,      setCustomForm]      = useState({ name:'', w:60, h:60 })
+
+  const [savedLayout, setSavedLayout] = useState(null)
 
   const [birthYear,  setBirthYear]  = useState('')
   const [editingDim, setEditingDim] = useState(null)
@@ -365,6 +373,19 @@ export default function App() {
 
   // ── API ──────────────────────────────────────────────────────────────────
 
+  const saveLayout = () => {
+    const isRenew = savedLayout !== null
+    const layout = describeRoom()
+    setSavedLayout(layout)
+    const notice = t.layoutSaved(isRenew)
+    push('assistant', notice)
+    setApiHistory(prev => [
+      ...prev,
+      { role: 'user', content: `[Room layout ${isRenew ? 'updated' : 'saved'}: ${layout}]` },
+      { role: 'assistant', content: notice },
+    ])
+  }
+
   const sendMessage = async txt => {
     const msg=(txt||inputValue).trim(); if(!msg||loading) return
     setInputValue('')
@@ -372,7 +393,7 @@ export default function App() {
     setLoading(true)
     const hist=[...apiHistory,{role:'user',content:msg}]
     try {
-      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPrompt(describeRoom(),birthYear),messages:hist})})
+      const r=await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:t.sysPrompt(savedLayout,birthYear),messages:hist})})
       const d=await r.json()
       const reply=d.content?.[0]?.text||d.error?.message||t.errCrystal
       push('assistant',reply)
@@ -875,7 +896,20 @@ export default function App() {
             </div>{/* /padding wrapper */}
           </div>{/* /canvas scroll area */}
 
-          <p style={{margin:0,fontSize:10,color:'#ccc',fontWeight:500,fontFamily:'monospace',textAlign:'center'}}>{t.hint}</p>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexShrink:0}}>
+            <p style={{margin:0,fontSize:10,color:'#ccc',fontWeight:500,fontFamily:'monospace',flex:1}}>{t.hint}</p>
+            <button onClick={saveLayout}
+              style={{
+                padding:'6px 16px',border:'none',
+                background:savedLayout?'#5B8EFF':'#C8EC28',
+                color:'#111',fontFamily:'inherit',fontSize:11,fontWeight:700,
+                cursor:'pointer',borderRadius:999,flexShrink:0,
+                transition:'all 0.15s',whiteSpace:'nowrap',
+              }}
+              onMouseEnter={e=>e.currentTarget.style.opacity='0.85'}
+              onMouseLeave={e=>e.currentTarget.style.opacity='1'}
+            >{savedLayout?t.renewBtn:t.saveBtn}</button>
+          </div>
         </div>
 
         </div>{/* ── /Middle column ── */}
