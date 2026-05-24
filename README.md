@@ -1,50 +1,50 @@
-# 🔮 风水AI · Cyber Feng Shui Advisor
+# 🔮 GEOM · Cyber Feng Shui Advisor
 
-一个面向年轻人的轻量级AI风水室内设计助手。
+A lightweight AI-powered feng shui interior design assistant for modern living.
 
-## 功能
+## Features
 
-- 🏠 **2D房间规划** — 拖拽家具摆放，调整房间大小
-- 🧭 **罗盘方位** — 设置朝向，显示东南西北和八卦方位
-- 🚪 **门窗管理** — 添加门/窗并自动吸附墙壁
-- 📷 **照片分析** — 上传真实房间照片，AI直接看图分析风水
-- 🎨 **效果图生成** — 通过DALL-E 3生成理想房间效果图
-- 💬 **AI对话** — 描述你的困惑，获得个性化风水建议
+- 🏠 **2D Room Planner** — Drag and drop furniture, resize your room freely
+- 🧭 **Compass Orientation** — Set facing direction with cardinal and bagua directions
+- 🚪 **Doors & Windows** — Add doors and windows that snap to walls automatically
+- 📷 **Photo Analysis** — Upload a real room photo and let AI analyse the feng shui directly
+- 🎨 **Room Render** — Generate an ideal room visualisation via DALL-E 3
+- 💬 **AI Chat** — Describe your situation and receive personalised feng shui advice
 
-## 快速开始
+## Getting Started
 
-### 1. 安装依赖
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. 启动开发服务器
+### 2. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-打开浏览器访问 http://localhost:5173
+Open your browser at http://localhost:5173
 
-### 3. 构建生产版本
+### 3. Build for production
 
 ```bash
 npm run build
 ```
 
-## 技术栈
+## Tech Stack
 
-- **框架**: React 18 + Vite
-- **AI对话 & 图片分析**: Claude API (Anthropic)
-- **效果图生成**: DALL-E 3 (OpenAI, 可选)
+- **Framework**: React 18 + Vite
+- **AI Chat & Image Analysis**: Claude API (Anthropic)
+- **Room Renders**: DALL-E 3 (OpenAI, optional)
 
-## API说明
+## API Notes
 
-- **Claude API**: 已通过 claude.ai 集成，无需额外配置
-- **OpenAI API**: 仅效果图生成功能需要，在界面中临时输入Key即可（不会被存储）
+- **Claude API**: Integrated via claude.ai — no extra configuration needed
+- **OpenAI API**: Only required for room render generation. Enter your key temporarily in the UI (it is never stored)
 
-## 项目结构
+## Project Structure
 
 ```
 fengshui-app/
@@ -52,7 +52,7 @@ fengshui-app/
 ├── package.json
 ├── vite.config.js
 └── src/
-    ├── main.jsx      # React 入口
-    ├── App.jsx       # 主组件
-    └── index.css     # 全局样式
+    ├── main.jsx      # React entry point
+    ├── App.jsx       # Main component
+    └── index.css     # Global styles
 ```
