@@ -8,6 +8,7 @@ const CORNER_HIT = 14
 const GRID = 16
 const PX_PER_CM = 1
 const MIN_PANEL = 300
+const WALL_T = 14
 
 const COLOR_PALETTE = [
   '#FF2D78','#FF5C5C','#FF8C33','#FFE134','#C8EC28','#3DD68C',
@@ -23,8 +24,9 @@ const FURNITURE = [
   { type:'lamp',     emoji:'💡', w:28, h:28,  color:'#FFE134', isWall:false },
   { type:'mirror',   emoji:'🪞', w:28, h:62,  color:'#38D5F0', isWall:false },
   { type:'crystal',  emoji:'🔮', w:26, h:26,  color:'#E8A0FF', isWall:false },
-  { type:'door',     emoji:'🚪', w:48, h:10,  color:'#FF5C5C', isWall:true  },
-  { type:'window',   emoji:'🪟', w:58, h:10,  color:'#2ECFBD', isWall:true  },
+  { type:'door',     emoji:'🚪', w:48, h:WALL_T+2, color:'#FF5C5C', isWall:true  },
+  { type:'window',   emoji:'🪟', w:58, h:WALL_T+2, color:'#2ECFBD', isWall:true  },
+  { type:'iwall',    emoji:'',   w:120,h:WALL_T,    color:'#555555', isWall:false },
 ]
 
 const SCREEN_ANGLES = [[315,0,45],[270,null,90],[225,180,135]]
@@ -37,14 +39,36 @@ const getZone = (xP, yP, na=0) => {
   return COMPASS_ZONES[Math.round((((na+sa)%360)+360)%360/45)%8]
 }
 
-const snapToWall = (item, x, y, rW, rH) => {
+const snapToWall = (item, x, y, rW, rH, iwalls=[]) => {
   const cx = x+item.w/2, cy = y+item.h/2
-  return [
-    { d:cy,    snap:{ x:Math.max(0,Math.min(rW-item.w,x)), y:0 } },
-    { d:rH-cy, snap:{ x:Math.max(0,Math.min(rW-item.w,x)), y:rH-item.h } },
-    { d:cx,    snap:{ x:0,       y:Math.max(0,Math.min(rH-item.h,y)) } },
-    { d:rW-cx, snap:{ x:rW-item.w, y:Math.max(0,Math.min(rH-item.h,y)) } },
-  ].sort((a,b)=>a.d-b.d)[0].snap
+  // For left/right walls the item is rotated 90°: visual w↔h swap.
+  // x: center item in wall thickness. y: constrain by visual height (item.w).
+  const leftX  = -WALL_T + item.h/2 - item.w/2
+  const rightX = rW + item.h/2 - item.w/2
+  const yMinV  = item.w/2 - item.h/2
+  const yMaxV  = rH - item.w/2 - item.h/2
+  const yV     = Math.max(yMinV, Math.min(yMaxV, y))
+  const candidates = [
+    { d:cy,    snap:{ x:Math.max(0,Math.min(rW-item.w,x)), y:-WALL_T, rotation:0  } },
+    { d:rH-cy, snap:{ x:Math.max(0,Math.min(rW-item.w,x)), y:rH,     rotation:0  } },
+    { d:cx,    snap:{ x:leftX,  y:yV, rotation:90 } },
+    { d:rW-cx, snap:{ x:rightX, y:yV, rotation:90 } },
+    ...iwalls.map(iw=>{
+      const isVertIwall = iw.h > iw.w
+      const θ = isVertIwall ? Math.PI/2 : ((iw.rotation||0)*Math.PI)/180
+      const cosθ=Math.cos(θ), sinθ=Math.sin(θ)
+      const wcx=iw.x+iw.w/2, wcy=iw.y+iw.h/2
+      const vx=cx-wcx, vy=cy-wcy
+      const along = vx*cosθ+vy*sinθ
+      const perp  = Math.abs(-vx*sinθ+vy*cosθ)
+      const wallLen = isVertIwall ? iw.h : iw.w
+      const wallOffset = Math.max(0, Math.min(wallLen-item.w, along+wallLen/2-item.w/2))
+      return { d:perp, snap:{ x:iw.x, y:iw.y, wallId:iw.id, wallOffset, rotation:0 } }
+    }),
+  ]
+  const res = candidates.sort((a,b)=>a.d-b.d)[0].snap
+  if (!res.wallId) { delete res.wallId; delete res.wallOffset }
+  return res
 }
 
 const isDark = hex => {
@@ -92,7 +116,7 @@ const T = {
       SW:'Kūn·Love', S:'Lí·Fame', SE:'Xùn·Wealth',
     },
     compass: ['N','NE','E','SE','S','SW','W','NW'],
-    furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window' },
+    furniture: { bed:'Bed', desk:'Desk', wardrobe:'Wardrobe', sofa:'Sofa', plant:'Plant', lamp:'Lamp', mirror:'Mirror', crystal:'Crystal', door:'Door', window:'Window', iwall:'Wall' },
     sysPrompt: (room, birth) => `You are GEOM, a stylish cyber feng shui intelligence. Always refer to yourself as GEOM. Room layout: ${room}. User birth year: ${birth||'not provided'}. Reply in English, under 200 words, with 1-2 actionable tips. Confident, a little mystical. Use emoji.`,
     errConn: '🔮 Connection issue, please try again~',
     errCrystal: '🔮 The crystal ball went dark, please try again~',
@@ -129,7 +153,7 @@ const T = {
       SW:'坤·爱情', S:'离·名声', SE:'巽·财富',
     },
     compass: ['北','东北','东','东南','南','西南','西','西北'],
-    furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗' },
+    furniture: { bed:'床', desk:'书桌', wardrobe:'衣柜', sofa:'沙发', plant:'绿植', lamp:'灯', mirror:'镜子', crystal:'水晶', door:'门', window:'窗', iwall:'墙' },
     sysPrompt: (room, birth) => `你是GEOM，一个赛博风水智能，始终自称GEOM。当前房间：${room}。用户出生年份：${birth||'未提供'}。回复200字以内，带emoji，给1-2个可操作建议，风格自信神秘有个性。`,
     errConn: '🔮 连接出了问题，请稍后重试～',
     errCrystal: '🔮 水晶球没电了，请稍后再试～',
@@ -161,21 +185,25 @@ export default function App() {
     { id:'2', type:'desk',     emoji:'🖥', x:270, y:28,  w:76, h:52, color:'#5B8EFF', isWall:false, rotation:0 },
     { id:'3', type:'plant',    emoji:'🌿', x:370, y:244, w:36, h:36, color:'#3DD68C', isWall:false, rotation:0 },
     { id:'4', type:'wardrobe', emoji:'🗄', x:28,  y:228, w:52, h:84, color:'#9B5DE5', isWall:false, rotation:0 },
-    { id:'5', type:'door',     emoji:'🚪', x:162, y:0,   w:48, h:10, color:'#FF5C5C', isWall:true,  rotation:0 },
-    { id:'6', type:'window',   emoji:'🪟', x:290, y:330, w:58, h:10, color:'#2ECFBD', isWall:true,  rotation:0 },
+    { id:'5', type:'door',   emoji:'🚪', x:162, y:-WALL_T, w:48, h:WALL_T+2, color:'#FF5C5C', isWall:true, rotation:0 },
+    { id:'6', type:'window', emoji:'🪟', x:290, y:340,    w:58, h:WALL_T+2, color:'#2ECFBD', isWall:true, rotation:0 },
   ])
 
   const drag               = useRef(null)
   const roomRef            = useRef(null)
   const splitContainerRef  = useRef(null)
   const chatEndRef         = useRef(null)
+  const dragFurnitureType  = useRef(null)
+  const [roomDragOver, setRoomDragOver] = useState(false)
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [movingId,        setMovingId]        = useState(null)
   const [showCustomModal, setShowCustomModal] = useState(false)
-  const [customForm,      setCustomForm]      = useState({ emoji:'📦', name:'', w:60, h:60 })
+  const [customForm,      setCustomForm]      = useState({ name:'', w:60, h:60 })
 
   const [birthYear,  setBirthYear]  = useState('')
+  const [editingDim, setEditingDim] = useState(null)
+  const [dimInput,   setDimInput]   = useState('')
   const [inputValue, setInputValue] = useState('')
   const [loading,    setLoading]    = useState(false)
   const [messages,   setMessages]   = useState([{ role:'assistant', content: T.en.initMsg }])
@@ -209,16 +237,14 @@ export default function App() {
     setConfirmDeleteId(null)
     const corner = getCorner(e, e.currentTarget)
     const it = items.find(i=>i.id===id)
+    const wall = it.wallId ? items.find(w=>w.id===it.wallId) : null
     drag.current = {
       mode: corner==='move' ? 'move' : `resize-${corner}`,
       id, sx:e.clientX, sy:e.clientY,
-      orig:{ x:it.x, y:it.y, w:it.w, h:it.h, roomW, roomH },
+      orig:{ x:it.x, y:it.y, w:it.w, h:it.h, roomW, roomH,
+             wallOffset:it.wallOffset, wallId:it.wallId },
+      ...(wall && { wallRotation:wall.rotation||0, wallW:wall.w }),
     }
-  }
-
-  const roomEdgeDown = (e, mode) => {
-    e.preventDefault()
-    drag.current = { mode, id:null, sx:e.clientX, sy:e.clientY, orig:{ roomW, roomH } }
   }
 
   const onMouseMove = useCallback((e) => {
@@ -238,32 +264,56 @@ export default function App() {
       setNorthAngle(Math.round(raw / 45) * 45 % 360)
       return
     }
-    if      (d.mode==='room-e')  setRoomW(()=>clamp(d.orig.roomW+dx, MIN_ROOM_W, MAX_ROOM_W))
-    else if (d.mode==='room-s')  setRoomH(()=>clamp(d.orig.roomH+dy, MIN_ROOM_H, MAX_ROOM_H))
-    else if (d.mode==='room-se') {
-      setRoomW(()=>clamp(d.orig.roomW+dx, MIN_ROOM_W, MAX_ROOM_W))
-      setRoomH(()=>clamp(d.orig.roomH+dy, MIN_ROOM_H, MAX_ROOM_H))
-    }
-    else if (d.mode==='move') {
+    if (d.mode==='move') {
       setItems(prev=>prev.map(it=>{
         if (it.id!==d.id) return it
-        let nx=clamp(d.orig.x+dx, 0, d.orig.roomW-it.w)
-        let ny=clamp(d.orig.y+dy, 0, d.orig.roomH-it.h)
-        if (it.isWall) ({ x:nx,y:ny }=snapToWall(it,nx,ny,d.orig.roomW,d.orig.roomH))
-        return {...it, x:nx, y:ny}
+        if (it.wallId) {
+          const wall = prev.find(w=>w.id===it.wallId)
+          if (!wall) return it
+          const isVertWall = wall.h > wall.w
+          // Absolute room position based on original wallOffset
+          const absX = isVertWall ? wall.x : wall.x + (d.orig.wallOffset||0)
+          const absY = isVertWall ? wall.y + (d.orig.wallOffset||0) : wall.y
+          // Re-snap to nearest wall (any iwall or outer wall)
+          const iwalls = prev.filter(i=>i.type==='iwall')
+          const snapped = snapToWall(it, absX+dx, absY+dy, d.orig.roomW, d.orig.roomH, iwalls)
+          return {...it, wallId:undefined, wallOffset:undefined, ...snapped}
+        }
+        if (it.isWall) {
+          const nx = d.orig.x+dx, ny = d.orig.y+dy
+          const iwalls = prev.filter(i=>i.type==='iwall')
+          return {...it, ...snapToWall(it, nx+WALL_T, ny+WALL_T, d.orig.roomW, d.orig.roomH, iwalls)}
+        }
+        return {...it, x:clamp(d.orig.x+dx,0,d.orig.roomW-it.w), y:clamp(d.orig.y+dy,0,d.orig.roomH-it.h)}
       }))
     }
     else if (d.mode.startsWith('resize-')) {
       const corner = d.mode.slice(7)
       setItems(prev=>prev.map(it=>{
         if (it.id!==d.id) return it
+        if (it.wallId) {
+          // resize along parent wall axis (width only)
+          const wall = prev.find(w=>w.id===it.wallId)
+          if (!wall) return it
+          const isVertWall = wall.h > wall.w
+          const dAlong = isVertWall ? dy : dx
+          const wallLen = isVertWall ? wall.h : wall.w
+          let { w, wallOffset } = d.orig
+          if (corner==='se'||corner==='sw') { w=Math.max(MIN_W, w+dAlong) }
+          else { const nw=Math.max(MIN_W,w-dAlong); wallOffset=wallOffset+w-nw; w=nw }
+          wallOffset=Math.max(0,Math.min(wallLen-w,wallOffset))
+          return {...it, w, wallOffset}
+        }
         let { x,y,w,h } = d.orig
-        if (corner==='se') { w=Math.max(MIN_W,w+dx); h=Math.max(MIN_H,h+dy) }
-        if (corner==='sw') { const nw=Math.max(MIN_W,w-dx); x=x+w-nw; w=nw; h=Math.max(MIN_H,h+dy) }
-        if (corner==='ne') { w=Math.max(MIN_W,w+dx); const nh=Math.max(MIN_H,h-dy); y=y+h-nh; h=nh }
-        if (corner==='nw') { const nw=Math.max(MIN_W,w-dx); x=x+w-nw; w=nw; const nh=Math.max(MIN_H,h-dy); y=y+h-nh; h=nh }
-        x=clamp(x,0,d.orig.roomW-MIN_W); y=clamp(y,0,d.orig.roomH-MIN_H)
-        w=Math.min(w,d.orig.roomW-x);    h=Math.min(h,d.orig.roomH-y)
+        const lockH = it.isWall || (it.type==='iwall' && d.orig.w>=d.orig.h)
+        const lockW = it.type==='iwall' && d.orig.w<d.orig.h
+        if (corner==='se') { if(!lockW) w=Math.max(MIN_W,w+dx); if(!lockH) h=Math.max(MIN_H,h+dy) }
+        if (corner==='sw') { if(!lockW){const nw=Math.max(MIN_W,w-dx); x=x+w-nw; w=nw}; if(!lockH) h=Math.max(MIN_H,h+dy) }
+        if (corner==='ne') { if(!lockW) w=Math.max(MIN_W,w+dx); if(!lockH){const nh=Math.max(MIN_H,h-dy);y=y+h-nh;h=nh} }
+        if (corner==='nw') { if(!lockW){const nw=Math.max(MIN_W,w-dx);x=x+w-nw;w=nw}; if(!lockH){const nh=Math.max(MIN_H,h-dy);y=y+h-nh;h=nh} }
+        if (!it.isWall) { x=clamp(x,0,d.orig.roomW-MIN_W); y=clamp(y,0,d.orig.roomH-MIN_H) }
+        w=Math.min(w, it.isWall ? d.orig.roomW : d.orig.roomW-x)
+        if (!lockH) h=Math.min(h,d.orig.roomH-y)
         return {...it,x,y,w,h}
       }))
     }
@@ -281,10 +331,15 @@ export default function App() {
   },[onMouseMove,onMouseUp])
 
   useEffect(()=>{
-    setItems(p=>p.map(it=>({ ...it,
-      x:clamp(it.x,0,roomW-it.w),
-      y:clamp(it.y,0,roomH-it.h),
-    })))
+    setItems(p=>p.map(it=>{
+      if (it.isWall) return it  // wall items keep their negative coords; re-snap on next drag
+      if (it.type==='iwall') {
+        const isHoriz = it.w >= it.h
+        if (isHoriz) return {...it, w:roomW, x:0}
+        else return {...it, h:roomH, y:0, x:clamp(it.x,0,roomW-it.w)}
+      }
+      return {...it, x:clamp(it.x,0,roomW-it.w), y:clamp(it.y,0,roomH-it.h)}
+    }))
   },[roomW,roomH])
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -296,7 +351,7 @@ export default function App() {
     const sx = f.isWall ? roomW/2-f.w/2 : 80+Math.random()*100
     const sy = f.isWall ? 0 : 60+Math.random()*80
     const pos = f.isWall ? snapToWall(f,sx,sy,roomW,roomH) : {x:sx,y:sy}
-    setItems(p=>[...p,{id:Date.now().toString(),...f,...pos,rotation:0}])
+    setItems(p=>[...p,{id:Date.now().toString(),...f,rotation:0,...pos}])
   }
 
   const compassDirAt = off => t.compass[Math.round(((northAngle+off)+360)%360/45)%8]
@@ -334,13 +389,13 @@ export default function App() {
     const h = Math.max(18, Math.min(200, customForm.h))
     setItems(p=>[...p, {
       id: Date.now().toString(), type:'custom',
-      emoji: customForm.emoji||'📦', customLabel: customForm.name.trim(),
+      customLabel: customForm.name.trim(),
       x: clamp(80+Math.random()*80, 0, roomW-w),
       y: clamp(60+Math.random()*80, 0, roomH-h),
       w, h, color:'#FF2D78', isWall:false, rotation:0,
     }])
     setShowCustomModal(false)
-    setCustomForm({ emoji:'📦', name:'', w:60, h:60 })
+    setCustomForm({ name:'', w:60, h:60 })
   }
 
   // ── Color swatch picker ───────────────────────────────────────────────────
@@ -403,8 +458,8 @@ export default function App() {
   return (
     <div style={{
       height:'100vh', background:'#000',
-      padding: isMobile ? '10px' : '14px',
-      display:'flex', flexDirection:'column', gap:'12px',
+      padding: 0,
+      display:'flex', flexDirection:'column', gap:'1px',
       boxSizing:'border-box', overflow:'hidden',
     }}>
 
@@ -415,24 +470,6 @@ export default function App() {
           <div style={{background:'#fff',borderRadius:22,padding:28,width:340,fontFamily:'inherit',boxShadow:'0 24px 64px rgba(0,0,0,0.3)'}}
             onClick={e=>e.stopPropagation()}>
             <h2 style={{margin:'0 0 20px',fontSize:16,fontWeight:700,color:'#111'}}>{t.customTitle}</h2>
-
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#999',letterSpacing:'1.5px',marginBottom:8,textTransform:'uppercase'}}>{t.iconLabel}</div>
-              <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-                <div style={{fontSize:22,width:40,height:40,border:'1.5px solid #eee',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{customForm.emoji}</div>
-                <input value={customForm.emoji} onChange={e=>setCustomForm(f=>({...f,emoji:e.target.value}))}
-                  style={{width:52,padding:'6px 8px',border:'1.5px solid #eee',background:'#fff',color:'#111',fontFamily:'inherit',fontSize:18,outline:'none',borderRadius:10,textAlign:'center'}}
-                  maxLength={2}/>
-              </div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                {['🛋','🛏','🖥','🗄','🚪','🪟','🌿','💡','🪞','🔮','🛁','🪑','📺','🪴','🎸','📚','💻','🎮','🖼','🧺','🎹','🎨','🧸','🚿'].map(em=>(
-                  <button key={em} onClick={()=>setCustomForm(f=>({...f,emoji:em}))}
-                    style={{fontSize:15,width:32,height:32,border:`1.5px solid ${customForm.emoji===em?'#111':'#eee'}`,background:customForm.emoji===em?'#111':'transparent',cursor:'pointer',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.1s'}}>
-                    {em}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <div style={{marginBottom:14}}>
               <div style={{fontSize:10,fontWeight:700,color:'#999',letterSpacing:'1.5px',marginBottom:6,textTransform:'uppercase'}}>{t.nameLabel}</div>
@@ -467,34 +504,30 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Header Card ── */}
-      <div style={{background:'#fff',borderRadius:20,padding:'12px 22px',display:'flex',alignItems:'center',gap:14,flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <img src="/logo.svg" style={{width:26,height:26,objectFit:'contain',flexShrink:0}} alt="GEOM"/>
+      {/* ── Top row: header + birth year + lang ── */}
+      <div style={{display:'flex',gap:'1px',flexShrink:0}}>
+        {/* Header Card */}
+        <div style={{background:'#fff',borderRadius:14,padding:'6px 22px',display:'flex',alignItems:'center',gap:10,flex:1}}>
+          <img src="/logo.svg" style={{width:22,height:22,objectFit:'contain',flexShrink:0}} alt="GEOM"/>
           <div>
-            <h1 style={{fontSize:17,fontWeight:700,color:'#111',letterSpacing:'-0.5px',margin:0}}>{t.appName}</h1>
-            <p style={{fontSize:8,color:'#aaa',letterSpacing:'2px',margin:0,fontWeight:600,textTransform:'uppercase'}}>{t.appSub}</p>
+            <h1 style={{fontSize:15,fontWeight:700,color:'#111',letterSpacing:'-0.5px',margin:0}}>{t.appName}</h1>
+            <p style={{fontSize:7,color:'#aaa',letterSpacing:'2px',margin:0,fontWeight:600,textTransform:'uppercase'}}>{t.appSub}</p>
           </div>
         </div>
 
-        {/* Status pill */}
-        <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',border:'1.5px solid #eee',borderRadius:999}}>
-          <div style={{width:7,height:7,borderRadius:'50%',background:'#00E676',flexShrink:0}}/>
-          <span style={{fontSize:10,fontWeight:700,color:'#111',letterSpacing:'1px',textTransform:'uppercase'}}>ONLINE</span>
+        {/* Birth Year Card */}
+        <div style={{background:'#fff',borderRadius:14,padding:'6px 16px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+          <span style={{fontSize:11,color:'#888',fontWeight:600,whiteSpace:'nowrap'}}>{t.birthYear}</span>
+          <input type="number" value={birthYear} onChange={e=>setBirthYear(e.target.value)} placeholder="2000"
+            style={{width:68,padding:'4px 10px',border:'1.5px solid #eee',background:'#fff',fontSize:12,color:'#111',outline:'none',borderRadius:999,fontFamily:'inherit'}}/>
         </div>
 
-        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
-          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#888',fontWeight:600}}>
-            {t.birthYear}
-            <input type="number" value={birthYear} onChange={e=>setBirthYear(e.target.value)} placeholder="2000"
-              style={{width:72,padding:'6px 12px',border:'1.5px solid #eee',background:'#fff',fontSize:12,color:'#111',outline:'none',borderRadius:999,fontFamily:'inherit'}}/>
-          </label>
-          <button onClick={()=>setLang(l=>l==='en'?'zh':'en')}
-            style={{padding:'6px 16px',border:'1.5px solid #111',background:'transparent',color:'#111',fontFamily:'inherit',fontSize:11,fontWeight:700,cursor:'pointer',borderRadius:999,transition:'all 0.1s',textTransform:'uppercase',letterSpacing:'0.5px'}}
-            onMouseEnter={e=>{e.currentTarget.style.background='#111';e.currentTarget.style.color='#fff'}}
-            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#111'}}
-          >{t.langBtn}</button>
-        </div>
+        {/* Lang Card */}
+        <button onClick={()=>setLang(l=>l==='en'?'zh':'en')}
+          style={{background:'#fff',borderRadius:14,padding:'6px 20px',border:'none',color:'#111',fontFamily:'inherit',fontSize:11,fontWeight:700,cursor:'pointer',flexShrink:0,textTransform:'uppercase',letterSpacing:'0.5px',transition:'background 0.1s,color 0.1s'}}
+          onMouseEnter={e=>{e.currentTarget.style.background='#C8EC28';e.currentTarget.style.color='#111'}}
+          onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#111'}}
+        >{t.langBtn}</button>
       </div>
 
       {/* ── Main Bento Grid ── */}
@@ -503,22 +536,28 @@ export default function App() {
         display: isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
         gridTemplateColumns: '116px 1fr 330px',
-        gap:'12px',
+        gap:'1px',
       }}>
 
         {/* ── Palette Card ── */}
-        <div style={{background:'#fff',borderRadius:20,padding:'16px 12px',display:'flex',flexDirection:'column',gap:4,overflowY:'auto',flexShrink:0}}>
+        <div style={{background:'#fff',borderRadius:14,padding:'16px 12px',display:'flex',flexDirection:'column',gap:4,overflowY:'auto',flexShrink:0}}>
           <div style={{fontSize:9,fontWeight:700,color:'#bbb',letterSpacing:'2px',marginBottom:8,textTransform:'uppercase',textAlign:'center'}}>{t.add}</div>
           {FURNITURE.map(f=>(
-            <button key={f.type} onClick={()=>addItem(f.type)}
-              style={{padding:'7px 10px',border:'none',background:'#f6f6f6',color:'#111',fontSize:11,fontWeight:600,cursor:'pointer',borderRadius:999,textAlign:'left',display:'flex',alignItems:'center',gap:6,transition:'all 0.1s',whiteSpace:'nowrap'}}
-              onMouseEnter={e=>{e.currentTarget.style.background='#111';e.currentTarget.style.color='#fff'}}
+            <div key={f.type}
+              draggable
+              onDragStart={e=>{
+                dragFurnitureType.current = f.type
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              onDragEnd={()=>{ dragFurnitureType.current=null }}
+              style={{padding:'7px 10px',border:'none',background:'#f6f6f6',color:'#111',fontSize:11,fontWeight:600,cursor:'grab',borderRadius:999,textAlign:'left',display:'flex',alignItems:'center',gap:6,transition:'all 0.1s',whiteSpace:'nowrap',userSelect:'none'}}
+              onMouseEnter={e=>{e.currentTarget.style.background='#C8EC28';e.currentTarget.style.color='#111'}}
               onMouseLeave={e=>{e.currentTarget.style.background='#f6f6f6';e.currentTarget.style.color='#111'}}
             >
               <span style={{width:7,height:7,borderRadius:'50%',background:f.color,display:'inline-block',flexShrink:0}}/>
               <img src={`/icons/${f.type}.svg`} style={{width:12,height:12,objectFit:'contain',flexShrink:0}} alt=""/>
               <span>{t.furniture[f.type]}</span>
-            </button>
+            </div>
           ))}
           <button onClick={()=>setShowCustomModal(true)}
             style={{padding:'7px 10px',border:'1.5px dashed #ddd',background:'transparent',color:'#aaa',fontSize:11,fontWeight:600,cursor:'pointer',borderRadius:999,textAlign:'left',display:'flex',alignItems:'center',gap:6,marginTop:6,transition:'all 0.1s'}}
@@ -530,9 +569,11 @@ export default function App() {
           </button>
         </div>
 
-        {/* ── Room Canvas Card ── */}
-        <div style={{background:'#fff',borderRadius:20,padding:'18px 20px',overflow:'auto',display:'flex',flexDirection:'column',gap:10}}>
+        {/* ── Middle column ── */}
+        <div style={{display:'flex',flexDirection:'column',gap:'1px',minHeight:0}}>
 
+        {/* ── Toolbar Card ── */}
+        <div style={{background:'#fff',borderRadius:14,padding:'10px 18px',display:'flex',flexDirection:'column',gap:8,flexShrink:0}}>
           {/* Toolbar row 1 */}
           <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
             <PillBtn active={true}>{t.tabRoom}</PillBtn>
@@ -543,13 +584,10 @@ export default function App() {
             ))}
             <VSep/>
             <PillBtn active={showBagua} onClick={()=>setShowBagua(v=>!v)}>{t.bagua}</PillBtn>
-            <span style={{marginLeft:'auto',fontSize:11,color:'#aaa',fontWeight:500,fontFamily:'monospace'}}>
-              {(()=>{ const it=items.find(i=>i.id===selectedId); return it ? `${fmtUnit(it.w,unit)} × ${fmtUnit(it.h,unit)}` : `${fmtUnit(roomW,unit)} × ${fmtUnit(roomH,unit)}` })()}
-            </span>
           </div>
 
-          {/* Floor + compass row */}
-          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          {/* Floor row */}
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
             <span style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px'}}>{t.floor}</span>
             <div style={{display:'flex',gap:5}}>
               {[{col:'#F5F5F5',label:'White'},{col:'#888888',label:'Grey'},{col:'#111111',label:'Black'}].map(({col,label})=>(
@@ -560,39 +598,99 @@ export default function App() {
                 />
               ))}
             </div>
-            <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
-              <p style={{margin:0,fontSize:10,color:'#ccc',fontWeight:500,fontFamily:'monospace',maxWidth:260,textAlign:'right',lineHeight:1.4}}>{t.canvasHint}</p>
-              <Compass/>
-            </div>
           </div>
+        </div>
 
+        {/* ── Canvas Card ── */}
+        <div style={{background:'#fff',borderRadius:14,padding:'18px 20px',overflow:'auto',display:'flex',flexDirection:'column',gap:10,flex:1,minHeight:0}}>
+          {/* Compass + size row */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+            <Compass/>
+            <span style={{fontSize:11,color:'#aaa',fontWeight:500,fontFamily:'monospace'}}>
+              {(()=>{ const it=items.find(i=>i.id===selectedId); return it ? `${fmtUnit(it.w,unit)} × ${fmtUnit(it.h,unit)}` : `${fmtUnit(roomW,unit)} × ${fmtUnit(roomH,unit)}` })()}
+            </span>
+          </div>
           {/* Canvas */}
           <div style={{flex:1,display:'flex',justifyContent:'center',alignItems:'flex-start',overflow:'auto'}}>
-            <div style={{position:'relative'}}>
+            <div style={{position:'relative',padding:`${WALL_T+30}px ${WALL_T+30}px`}}>
               {/* Direction labels */}
               {[
-                {lbl:compassDirAt(0),   s:{top:-18,  left:'50%',transform:'translateX(-50%)'}},
-                {lbl:compassDirAt(180), s:{bottom:-18,left:'50%',transform:'translateX(-50%)'}},
-                {lbl:compassDirAt(270), s:{top:'50%', left:-24, transform:'translateY(-50%)'}},
-                {lbl:compassDirAt(90),  s:{top:'50%', right:-24,transform:'translateY(-50%)'}},
+                {lbl:compassDirAt(0),   s:{top:8,           left:'50%',transform:'translateX(-50%)'}},
+                {lbl:compassDirAt(180), s:{bottom:8,         left:'50%',transform:'translateX(-50%)'}},
+                {lbl:compassDirAt(270), s:{top:'50%',        left:8,    transform:'translateY(-50%)'}},
+                {lbl:compassDirAt(90),  s:{top:'50%',        right:8,   transform:'translateY(-50%)'}},
               ].map(({lbl,s},i)=>(
                 <div key={i} style={{position:'absolute',fontSize:10,fontWeight:700,color:'#bbb',whiteSpace:'nowrap',fontFamily:'monospace',...s}}>{lbl}</div>
               ))}
 
-              {/* Room */}
-              <div ref={roomRef}
-                onClick={()=>{setSelectedId(null);setConfirmDeleteId(null);closeColorSwatch()}}
-                style={{
-                  position:'relative',width:roomW,height:roomH,
-                  background:floorColor,
-                  border:'1.5px solid #ddd',
-                  borderRadius:8,
-                  overflow:'hidden',userSelect:'none',
-                  backgroundImage:`linear-gradient(${floorIsDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'} 1px,transparent 1px),linear-gradient(90deg,${floorIsDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'} 1px,transparent 1px)`,
-                  backgroundSize:`${GRID}px ${GRID}px`,
-                  boxShadow:'0 2px 12px rgba(0,0,0,0.07)',
-                }}
-              >
+              {/* ── Outer wall shell (double-line effect) ── */}
+              <div style={{position:'relative', width:roomW+2*WALL_T, height:roomH+2*WALL_T}}>
+                {/* Outer wall line */}
+                <div style={{position:'absolute',inset:0,background:'transparent',borderRadius:6,border:'2px solid #333',pointerEvents:'none',zIndex:0}}/>
+                {/* Inner wall line */}
+                <div style={{position:'absolute',left:WALL_T-1,top:WALL_T-1,width:roomW+2,height:roomH+2,border:'1.5px solid #333',pointerEvents:'none',zIndex:2}}/>
+
+                {/* Dimension labels – double-click to edit */}
+                {/* Width (bottom) */}
+                <div style={{position:'absolute',bottom:-(WALL_T+16),left:WALL_T,width:roomW,textAlign:'center',cursor:'pointer',zIndex:10}}
+                  onDoubleClick={()=>{setEditingDim('w');setDimInput(String(toCm(roomW)))}}>
+                  {editingDim==='w'
+                    ? <input autoFocus type="number" value={dimInput} onChange={e=>setDimInput(e.target.value)}
+                        onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape'){const v=parseInt(dimInput);if(!isNaN(v)&&v>0)setRoomW(clamp(v,MIN_ROOM_W,MAX_ROOM_W));setEditingDim(null)}}}
+                        onBlur={()=>{const v=parseInt(dimInput);if(!isNaN(v)&&v>0)setRoomW(clamp(v,MIN_ROOM_W,MAX_ROOM_W));setEditingDim(null)}}
+                        style={{width:70,textAlign:'center',fontSize:10,fontFamily:'monospace',border:'1px solid #ccc',borderRadius:4,padding:'1px 4px',outline:'none'}}/>
+                    : <span style={{fontSize:10,color:'#aaa',fontFamily:'monospace',borderBottom:'1px dashed #ddd'}}>{fmtUnit(roomW,unit)}</span>}
+                </div>
+                {/* Height (right) */}
+                <div style={{position:'absolute',right:-(WALL_T+16),top:WALL_T,height:roomH,display:'flex',alignItems:'center',cursor:'pointer',zIndex:10}}
+                  onDoubleClick={()=>{setEditingDim('h');setDimInput(String(toCm(roomH)))}}>
+                  {editingDim==='h'
+                    ? <input autoFocus type="number" value={dimInput} onChange={e=>setDimInput(e.target.value)}
+                        onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape'){const v=parseInt(dimInput);if(!isNaN(v)&&v>0)setRoomH(clamp(v,MIN_ROOM_H,MAX_ROOM_H));setEditingDim(null)}}}
+                        onBlur={()=>{const v=parseInt(dimInput);if(!isNaN(v)&&v>0)setRoomH(clamp(v,MIN_ROOM_H,MAX_ROOM_H));setEditingDim(null)}}
+                        style={{width:60,textAlign:'center',fontSize:10,fontFamily:'monospace',border:'1px solid #ccc',borderRadius:4,padding:'1px 4px',outline:'none'}}/>
+                    : <span style={{fontSize:10,color:'#aaa',fontFamily:'monospace',writingMode:'vertical-rl',transform:'rotate(180deg)',borderLeft:'1px dashed #ddd'}}>{fmtUnit(roomH,unit)}</span>}
+                </div>
+
+                {/* Inner floor (roomRef) — overflow:visible so wall items extend into wall zone */}
+                <div ref={roomRef}
+                  onClick={()=>{setSelectedId(null);setConfirmDeleteId(null);closeColorSwatch()}}
+                  onDragOver={e=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; setRoomDragOver(true) }}
+                  onDragLeave={()=>setRoomDragOver(false)}
+                  onDrop={e=>{
+                    e.preventDefault()
+                    setRoomDragOver(false)
+                    const type = dragFurnitureType.current
+                    if (!type) return
+                    const f = FURNITURE.find(f=>f.type===type)
+                    if (!f || !roomRef.current) return
+                    const rect = roomRef.current.getBoundingClientRect()
+                    const dropX = e.clientX - rect.left
+                    const dropY = e.clientY - rect.top
+                    let pos
+                    if (f.type === 'iwall') {
+                      const y = clamp(dropY - WALL_T/2, 0, roomH - WALL_T)
+                      pos = { x:0, y, w:roomW, h:WALL_T }
+                    } else if (f.isWall) {
+                      const iwalls = items.filter(i=>i.type==='iwall')
+                      pos = snapToWall(f, dropX - f.w/2, dropY - f.h/2, roomW, roomH, iwalls)
+                    } else {
+                      pos = { x:clamp(dropX-f.w/2,0,roomW-f.w), y:clamp(dropY-f.h/2,0,roomH-f.h) }
+                    }
+                    setItems(p=>[...p,{id:Date.now().toString(),...f,rotation:0,...pos}])
+                    dragFurnitureType.current = null
+                  }}
+                  style={{
+                    position:'absolute', left:WALL_T, top:WALL_T,
+                    width:roomW, height:roomH,
+                    background: roomDragOver ? 'rgba(91,142,255,0.06)' : floorColor,
+                    outline: roomDragOver ? '2px dashed #5B8EFF' : 'none',
+                    overflow:'visible', userSelect:'none',
+                    backgroundImage:`linear-gradient(${floorIsDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'} 1px,transparent 1px),linear-gradient(90deg,${floorIsDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'} 1px,transparent 1px)`,
+                    backgroundSize:`${GRID}px ${GRID}px`,
+                    zIndex:1,
+                  }}
+                >
                 {/* Bagua */}
                 {showBagua&&[0,1,2].flatMap(row=>[0,1,2].map(col=>{
                   const sa=SCREEN_ANGLES[row][col]
@@ -607,38 +705,78 @@ export default function App() {
 
                 {/* Furniture items */}
                 {items.map(it=>{
+                  if (it.wallId) return null  // rendered inside parent iwall
                   const isSel=selectedId===it.id
-                  const light=!isDark(it.color)
+                  const isIwall=it.type==='iwall'
+                  const isWallItem=it.isWall
+                  const light=isWallItem?true:!isDark(it.color)
+                  const bg=isIwall?'transparent':isWallItem?floorColor:it.color
+                  const corners=(isWallItem||isIwall)?['nw','ne','sw','se'].filter(c=>c.includes('w')||c.includes('e')):['nw','ne','sw','se']
+                  const iwallChildren=isIwall?items.filter(ch=>ch.wallId===it.id):[]
+                  const renderWallChild=ch=>{
+                    const chSel=selectedId===ch.id
+                    const isVertIwall=it.h>it.w
+                    // For vertical iwalls: ch.w = opening size (now rendered vertically), ch.h = wall thickness
+                    const cW=isVertIwall?ch.h:ch.w, cH=isVertIwall?ch.w:ch.h
+                    const posStyle=isVertIwall
+                      ?{left:-1,top:ch.wallOffset||0,width:cW,height:cH}
+                      :{left:ch.wallOffset||0,top:-1,width:cW,height:cH}
+                    const resizeCorners=['nw','ne','sw','se'].filter(c=>isVertIwall?(c.includes('n')||c.includes('s')):(c.includes('w')||c.includes('e')))
+                    return (
+                      <div key={ch.id}
+                        onMouseDown={e=>{e.stopPropagation();itemMouseDown(e,ch.id)}}
+                        onClick={e=>e.stopPropagation()}
+                        style={{position:'absolute',...posStyle,
+                          background:floorColor,border:`2px solid ${ch.color}`,
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          zIndex:chSel?10:2,userSelect:'none',cursor:'grab',
+                          outline:chSel?'2px solid #C8EC28':'none',
+                        }}>
+                        {chSel&&resizeCorners.map(c=>(
+                          <div key={c} style={{position:'absolute',width:7,height:7,background:'#111',borderRadius:'50%',pointerEvents:'none',
+                            top:c.includes('n')?-3:'auto',bottom:c.includes('s')?-3:'auto',
+                            left:c.includes('w')?-3:'auto',right:c.includes('e')?-3:'auto'}}/>
+                        ))}
+                        {cH>32&&<span style={{fontSize:9,color:ch.color,fontWeight:600,fontFamily:'monospace',userSelect:'none',transform:isVertIwall?'rotate(90deg)':'none'}}>{t.furniture[ch.type]}</span>}
+                        {chSel&&(
+                          <button onMouseDown={e=>e.stopPropagation()}
+                            onClick={e=>{e.stopPropagation();setItems(p=>p.filter(i=>i.id!==ch.id));setSelectedId(null)}}
+                            style={{position:'absolute',top:-12,right:-12,width:18,height:18,borderRadius:'50%',background:'rgba(255,59,48,0.9)',color:'#fff',border:'none',cursor:'pointer',fontSize:9,display:'flex',alignItems:'center',justifyContent:'center',zIndex:20}}>✕</button>
+                        )}
+                      </div>
+                    )
+                  }
                   return (
                     <div key={it.id}
                       onMouseDown={e=>itemMouseDown(e,it.id)}
-                      onDoubleClick={e=>triggerColor(e,it.id)}
+                      onDoubleClick={e=>isWallItem||isIwall?null:triggerColor(e,it.id)}
                       onClick={e=>e.stopPropagation()}
                       onMouseMove={e=>{ if(drag.current) return; e.currentTarget.style.cursor=CURSORS[getCorner(e,e.currentTarget)] }}
                       style={{
                         position:'absolute',left:it.x,top:it.y,width:it.w,height:it.h,
-                        background:it.color,
-                        border:`2px solid ${isSel?'#111':'transparent'}`,
-                        borderRadius:6,
-                        boxShadow:isSel?'0 0 0 2px #111, 0 4px 12px rgba(0,0,0,0.15)':'0 1px 4px rgba(0,0,0,0.12)',
+                        background:bg,
+                        border:isIwall?`1.5px solid ${isSel?'#C8EC28':'#333'}`:isWallItem?`2px solid ${it.color}`:`2px solid ${isSel?'#111':'transparent'}`,
+                        borderRadius:isIwall||isWallItem?0:6,
+                        boxShadow:isSel&&!isIwall&&!isWallItem?'0 0 0 2px #111, 0 4px 12px rgba(0,0,0,0.15)':'none',
                         display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-                        zIndex:isSel?50:1,userSelect:'none',
+                        zIndex:isWallItem?3:isSel?50:1,
+                        userSelect:'none',overflow:'visible',
                         transform:`rotate(${it.rotation||0}deg)`,transformOrigin:'center center',
+                        outline:isSel&&(isIwall||isWallItem)?'2px solid #C8EC28':'none',
                       }}
                     >
-                      {isSel&&['nw','ne','sw','se'].map(c=>(
+                      {isSel&&corners.map(c=>(
                         <div key={c} style={{position:'absolute',width:7,height:7,background:'#111',borderRadius:'50%',pointerEvents:'none',
                           top:c.includes('n')?-3:'auto',bottom:c.includes('s')?-3:'auto',
-                          left:c.includes('w')?-3:'auto',right:c.includes('e')?-3:'auto',
-                        }}/>
+                          left:c.includes('w')?-3:'auto',right:c.includes('e')?-3:'auto'}}/>
                       ))}
-                      {it.type==='custom'
-                        ? <span style={{fontSize:it.w>44?14:10,lineHeight:1,userSelect:'none'}}>{it.emoji}</span>
-                        : <img src={`/icons/${it.type}.svg`} style={{width:it.w>44?18:12,height:it.w>44?18:12,objectFit:'contain',pointerEvents:'none',userSelect:'none',filter:light?'none':'invert(1)'}} alt=""/>
-                      }
-                      {it.w>32&&it.h>26&&(
-                        <span style={{fontSize:9,color:light?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.9)',fontWeight:600,fontFamily:'monospace',marginTop:2,userSelect:'none'}}>{it.customLabel||t.furniture[it.type]}</span>
+                      {!isIwall&&!isWallItem&&it.type!=='custom'&&(
+                        <img src={`/icons/${it.type}.svg`} style={{width:it.w>44?18:12,height:it.w>44?18:12,objectFit:'contain',pointerEvents:'none',userSelect:'none',filter:light?'none':'invert(1)'}} alt=""/>
                       )}
+                      {!isIwall&&it.w>32&&it.h>10&&(
+                        <span style={{fontSize:9,color:isWallItem?it.color:'rgba(0,0,0,0.7)',fontWeight:600,fontFamily:'monospace',userSelect:'none'}}>{it.customLabel||t.furniture[it.type]}</span>
+                      )}
+                      {iwallChildren.map(ch=>renderWallChild(ch))}
                     </div>
                   )
                 })}
@@ -662,7 +800,7 @@ export default function App() {
 
                 {/* Floating action buttons */}
                 {selectedId && movingId !== selectedId && !colorPickId && (()=>{
-                  const it=items.find(i=>i.id===selectedId); if(!it) return null
+                  const it=items.find(i=>i.id===selectedId); if(!it||it.wallId) return null
                   const above = it.y >= 32
                   const top   = above ? it.y - 30 : it.y + it.h + 4
                   const left  = it.x + it.w/2
@@ -675,7 +813,7 @@ export default function App() {
                         onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
                         <span style={{fontSize:11,fontWeight:600,color:'#111'}}>{lang==='en'?'Delete?':'确认删除？'}</span>
                         <button style={{...btnBase,padding:'3px 10px',background:'#ff3b30',color:'#fff'}}
-                          onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId));setSelectedId(null);setConfirmDeleteId(null)}}>
+                          onClick={()=>{setItems(p=>p.filter(i=>i.id!==selectedId&&i.wallId!==selectedId));setSelectedId(null);setConfirmDeleteId(null)}}>
                           {lang==='en'?'Yes':'是'}
                         </button>
                         <button style={{...btnBase,padding:'3px 10px',background:'#f0f0f0',color:'#111'}}
@@ -688,15 +826,43 @@ export default function App() {
 
                   return (
                     <div style={floatWrap} onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
-                      <button
-                        style={{...btnBase,padding:'4px 10px',background:'rgba(255,255,255,0.92)',color:'#111',boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}
-                        onMouseDown={e=>{
-                          e.preventDefault()
-                          if (!roomRef.current) return
-                          const r = roomRef.current.getBoundingClientRect()
-                          drag.current = {mode:'rotate', id:selectedId, cx:r.left+it.x+it.w/2, cy:r.top+it.y+it.h/2}
-                          setMovingId(selectedId)
-                        }}>↻</button>
+                      {!it.isWall&&(
+                        <button
+                          style={{...btnBase,padding:'4px 10px',background:'rgba(255,255,255,0.92)',color:'#111',boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}
+                          onMouseDown={e=>{
+                            e.preventDefault()
+                            if (it.type==='iwall') {
+                              setItems(prev=>{
+                                const iw=prev.find(i=>i.id===it.id); if(!iw) return prev
+                                const cx=iw.x+iw.w/2, cy=iw.y+iw.h/2
+                                const isHoriz=iw.w>=iw.h
+                                let newIwall
+                                if (isHoriz) {
+                                  const nw=WALL_T, nh=Math.min(roomH,Math.max(iw.w,40))
+                                  newIwall={...iw,w:nw,h:nh,x:clamp(cx-nw/2,0,roomW-nw),y:clamp(cy-nh/2,0,roomH-nh),rotation:0}
+                                } else {
+                                  const nh=WALL_T, nw=Math.min(roomW,Math.max(iw.h,40))
+                                  newIwall={...iw,w:nw,h:nh,x:clamp(cx-nw/2,0,roomW-nw),y:clamp(cy-nh/2,0,roomH-nh),rotation:0}
+                                }
+                                const oldLen=isHoriz?iw.w:iw.h
+                                const newLen=isHoriz?newIwall.h:newIwall.w
+                                return prev.map(i=>{
+                                  if (i.id===iw.id) return newIwall
+                                  if (i.wallId===iw.id) {
+                                    const ratio=oldLen>0?(i.wallOffset||0)/oldLen:0
+                                    return {...i,wallOffset:clamp(Math.round(ratio*newLen),0,newLen-i.w)}
+                                  }
+                                  return i
+                                })
+                              })
+                              return
+                            }
+                            if (!roomRef.current) return
+                            const r = roomRef.current.getBoundingClientRect()
+                            drag.current = {mode:'rotate', id:selectedId, cx:r.left+it.x+it.w/2, cy:r.top+it.y+it.h/2}
+                            setMovingId(selectedId)
+                          }}>↻</button>
+                      )}
                       <button
                         style={{...btnBase,padding:'4px 10px',background:'rgba(255,59,48,0.9)',color:'#fff',boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}
                         onClick={()=>setConfirmDeleteId(selectedId)}>✕</button>
@@ -704,20 +870,18 @@ export default function App() {
                   )
                 })()}
 
-              </div>
-
-              {/* Room resize handles */}
-              <div onMouseDown={e=>roomEdgeDown(e,'room-e')} style={{position:'absolute',right:-9,top:'35%',width:6,height:26,background:'#ccc',borderRadius:4,cursor:'ew-resize',zIndex:20}}/>
-              <div onMouseDown={e=>roomEdgeDown(e,'room-s')} style={{position:'absolute',bottom:-9,left:'35%',width:26,height:6,background:'#ccc',borderRadius:4,cursor:'ns-resize',zIndex:20}}/>
-              <div onMouseDown={e=>roomEdgeDown(e,'room-se')} style={{position:'absolute',right:-9,bottom:-9,width:12,height:12,background:'#bbb',borderRadius:'50%',cursor:'nwse-resize',zIndex:21}}/>
-            </div>
-          </div>
+              </div>{/* /inner floor (roomRef) */}
+              </div>{/* /outer wall shell */}
+            </div>{/* /padding wrapper */}
+          </div>{/* /canvas scroll area */}
 
           <p style={{margin:0,fontSize:10,color:'#ccc',fontWeight:500,fontFamily:'monospace',textAlign:'center'}}>{t.hint}</p>
         </div>
 
+        </div>{/* ── /Middle column ── */}
+
         {/* ── Chat Card ── */}
-        <div style={{background:'#fff',borderRadius:20,display:'flex',flexDirection:'column',overflow:'hidden',minHeight:isMobile?300:0}}>
+        <div style={{background:'#fff',borderRadius:14,display:'flex',flexDirection:'column',overflow:'hidden',minHeight:isMobile?300:0}}>
 
           {/* Messages */}
           <div style={{flex:1,overflowY:'auto',padding:'18px 16px',display:'flex',flexDirection:'column',gap:10}}>
@@ -759,7 +923,7 @@ export default function App() {
             {t.quick.map(p=>(
               <button key={p} onClick={()=>sendMessage(p)} disabled={loading}
                 style={{padding:'5px 11px',border:'1.5px solid #eee',background:'transparent',color:'#666',fontSize:11,fontWeight:500,cursor:loading?'not-allowed':'pointer',opacity:loading?0.4:1,borderRadius:999,transition:'all 0.1s'}}
-                onMouseEnter={e=>{if(!loading){e.currentTarget.style.background='#111';e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor='#111'}}}
+                onMouseEnter={e=>{if(!loading){e.currentTarget.style.background='#C8EC28';e.currentTarget.style.color='#111';e.currentTarget.style.borderColor='#C8EC28'}}}
                 onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#666';e.currentTarget.style.borderColor='#eee'}}
               >{p}</button>
             ))}
@@ -773,7 +937,7 @@ export default function App() {
               style={{flex:1,padding:'10px 16px',border:'1.5px solid #eee',background:'#f9f9f9',fontSize:13,color:'#111',outline:'none',fontFamily:'inherit',borderRadius:999}}
             />
             <button onClick={()=>sendMessage()} disabled={loading||!inputValue.trim()}
-              style={{padding:'10px 18px',border:'none',background:(loading||!inputValue.trim())?'#eee':'#111',color:(loading||!inputValue.trim())?'#aaa':'#fff',fontFamily:'inherit',fontSize:13,fontWeight:600,cursor:(loading||!inputValue.trim())?'not-allowed':'pointer',borderRadius:999,whiteSpace:'nowrap',transition:'all 0.15s'}}
+              style={{padding:'10px 18px',border:'none',background:(loading||!inputValue.trim())?'#eee':'#C8EC28',color:(loading||!inputValue.trim())?'#aaa':'#111',fontFamily:'inherit',fontSize:13,fontWeight:600,cursor:(loading||!inputValue.trim())?'not-allowed':'pointer',borderRadius:999,whiteSpace:'nowrap',transition:'all 0.15s'}}
             >{loading?'…':t.sendBtn}</button>
           </div>
         </div>
@@ -794,8 +958,8 @@ function PillBtn({ children, active, disabled, onClick }) {
         fontFamily:'inherit', fontSize:11, fontWeight:600,
         cursor:disabled?'not-allowed':'pointer',
         borderRadius:999, transition:'all 0.1s',
-        background: active ? '#111' : 'transparent',
-        color: active ? '#fff' : '#666',
+        background: active ? '#C8EC28' : 'transparent',
+        color: active ? '#111' : '#666',
         opacity: disabled ? 0.4 : 1,
         letterSpacing:'0.3px',
         textTransform:'uppercase',
